@@ -9,7 +9,7 @@ from rag.pipeline import ask as run_ask
 from rag.retrieve import collection
 
 app=FastAPI(title="AstroRAG",version="1.0")
-app.add_middleware(CORSMiddleware,allow_origins=[WEB_ORIGIN],allow_methods=["*"],allow_headers=["*"])
+app.add_middleware(CORSMiddleware,allow_origins=[WEB_ORIGIN,"http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
 
 @app.on_event("startup")
 def startup(): init_db()
