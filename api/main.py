@@ -4,9 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import ollama
 from config.settings import WEB_ORIGIN, LLM_MODEL, EMBED_MODEL
 from api.db import init_db, connect, health
-from api.models import SessionIn, AskIn, FeedbackIn
+from api.models import SessionIn, AskIn, CopilotIn, FeedbackIn
 from rag.pipeline import ask as run_ask
 from rag.retrieve import collection
+from rag.generate import generate
+from rag.guardrails import severity
 
 app=FastAPI(title="AstroRAG",version="1.0")
 app.add_middleware(CORSMiddleware,allow_origins=[WEB_ORIGIN,"http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
@@ -36,6 +38,24 @@ def messages(sid:int):
 def ask(data:AskIn):
     try: return run_ask(data.question,data.session_id)
     except Exception as exc: raise HTTPException(503,f"Local retrieval/generation service unavailable: {exc}")
+
+@app.post("/copilot")
+def copilot(data:CopilotIn):
+    """Handle general crew tasks locally; route health questions through NASA RAG."""
+    medical_terms=("symptom","pain","injury","sick","medical","health","medicine","dose","treatment","bleeding","fever","headache","sleep","heart rate","blood pressure","oxygen","radiation","nausea","dizzy","breath","hydration")
+    if any(term in data.question.lower() for term in medical_terms):
+        try: return run_ask(data.question,data.session_id)
+        except Exception as exc: raise HTTPException(503,f"Local evidence assistant unavailable: {exc}")
+    prompt=("You are AstroMed, a private local copilot for astronauts. Help with non-medical mission tasks such as "
+            "planning, checklists, handovers, communication drafts, and organizing work. Be practical, calm, and concise. "
+            "Do not invent mission-specific facts, operational commands, or safety procedures. Ask for missing details. "
+            "For medical questions, say to use the NASA-source health assistant.\nTask: " + data.question + "\nResponse:")
+    try: answer=generate(prompt)
+    except Exception as exc: raise HTTPException(503,f"Local Ollama assistant unavailable: {exc}")
+    with connect() as con:
+        con.execute("INSERT INTO messages(session_id,role,content) VALUES(?,?,?)",(data.session_id,"user",data.question))
+        mid=con.execute("INSERT INTO messages(session_id,role,content,refused) VALUES(?,?,?,0)",(data.session_id,"assistant",answer)).lastrowid
+    return {"message_id":mid,"answer":answer,"refused":False,"fallback":False,"severity":"info","sources":[],"mode":"crew_copilot"}
 
 @app.post("/feedback")
 def feedback(data:FeedbackIn):

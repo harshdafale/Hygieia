@@ -8,6 +8,10 @@ class AskIn(BaseModel):
     session_id: int = Field(ge=1)
     question: str = Field(min_length=2, max_length=2000)
 
+class CopilotIn(BaseModel):
+    session_id: int = Field(ge=1)
+    question: str = Field(min_length=2, max_length=2000)
+
 class FeedbackIn(BaseModel):
     message_id: int = Field(ge=1)
     rating: int = Field(ge=-1, le=1)
