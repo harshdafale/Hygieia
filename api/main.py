@@ -17,7 +17,7 @@ def startup(): init_db()
 @app.get("/health")
 def get_health():
     try:
-        tags=ollama.list(); names=[m.get("name","") for m in tags.get("models",[])]
+        tags=ollama.list(); names=[str(m.get("model") or m.get("name") or "") for m in tags.get("models",[])]
         return {"api":"ok","sqlite":health(),"chroma":True,"ollama":True,"llm_model":LLM_MODEL,"llm_available":any(LLM_MODEL in n for n in names),"embedding_model":EMBED_MODEL,"embedding_available":any(EMBED_MODEL in n for n in names)}
     except Exception as exc: return {"api":"ok","sqlite":health(),"chroma":True,"ollama":False,"detail":str(exc)}
 
