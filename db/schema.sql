@@ -1,0 +1,13 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY, title TEXT NOT NULL, source_url TEXT, doc_type TEXT, filename TEXT NOT NULL, content_hash TEXT NOT NULL, ingested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(filename, content_hash));
+CREATE TABLE IF NOT EXISTS chunks (id TEXT PRIMARY KEY, document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, section TEXT, page INTEGER, text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS crew (id INTEGER PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions (id INTEGER PRIMARY KEY, crew_id INTEGER NOT NULL REFERENCES crew(id), started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES sessions(id), role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, refused INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS retrievals (message_id INTEGER NOT NULL REFERENCES messages(id), chunk_id TEXT NOT NULL REFERENCES chunks(id), rank INTEGER NOT NULL, distance REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS feedback (message_id INTEGER NOT NULL REFERENCES messages(id), rating INTEGER NOT NULL, comment TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS eval_runs (id INTEGER PRIMARY KEY, run_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, hit_rate REAL, refusal_accuracy REAL, notes TEXT);
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_retrievals_message ON retrievals(message_id);
+INSERT OR IGNORE INTO crew(id,name,role) VALUES (1,'Alex Rivera','Commander'),(2,'Sam Okafor','Flight Engineer'),(3,'Taylor Chen','Mission Specialist');

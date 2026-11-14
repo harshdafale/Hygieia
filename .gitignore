@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+web/dist/
+db/*.sqlite*
+db/chroma/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
