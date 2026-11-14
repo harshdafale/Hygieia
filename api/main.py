@@ -4,11 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import ollama
 from config.settings import WEB_ORIGIN, LLM_MODEL, EMBED_MODEL
 from api.db import init_db, connect, health
-from api.models import SessionIn, AskIn, CopilotIn, FeedbackIn
+from api.models import SessionIn, AskIn, CopilotIn, DiagnoseIn, FeedbackIn
 from rag.pipeline import ask as run_ask
 from rag.retrieve import collection
 from rag.generate import generate
 from rag.guardrails import severity
+from rag.retrieve import retrieve
+import json, re
 
 app=FastAPI(title="AstroRAG",version="1.0")
 app.add_middleware(CORSMiddleware,allow_origins=[WEB_ORIGIN,"http://127.0.0.1:5173"],allow_methods=["*"],allow_headers=["*"])
@@ -46,16 +48,63 @@ def copilot(data:CopilotIn):
     if any(term in data.question.lower() for term in medical_terms):
         try: return run_ask(data.question,data.session_id)
         except Exception as exc: raise HTTPException(503,f"Local evidence assistant unavailable: {exc}")
-    prompt=("You are AstroMed, a private local copilot for astronauts. Help with non-medical mission tasks such as "
+    with connect() as con:
+        history=con.execute("SELECT role,content FROM messages WHERE session_id=? ORDER BY id DESC LIMIT 12",(data.session_id,)).fetchall()
+    prior="\n".join(f"{row['role'].upper()}: {row['content']}" for row in reversed(history))
+    prompt=("You are AstroMed, a private local copilot for astronauts. Use the recent conversation to understand follow-up requests. "
+            "Help with non-medical mission tasks such as "
             "planning, checklists, handovers, communication drafts, and organizing work. Be practical, calm, and concise. "
             "Do not invent mission-specific facts, operational commands, or safety procedures. Ask for missing details. "
-            "For medical questions, say to use the NASA-source health assistant.\nTask: " + data.question + "\nResponse:")
+            "For medical questions, say to use the NASA-source health assistant.\nRecent conversation:\n" + prior + "\nTask: " + data.question + "\nResponse:")
     try: answer=generate(prompt)
     except Exception as exc: raise HTTPException(503,f"Local Ollama assistant unavailable: {exc}")
     with connect() as con:
         con.execute("INSERT INTO messages(session_id,role,content) VALUES(?,?,?)",(data.session_id,"user",data.question))
         mid=con.execute("INSERT INTO messages(session_id,role,content,refused) VALUES(?,?,?,0)",(data.session_id,"assistant",answer)).lastrowid
     return {"message_id":mid,"answer":answer,"refused":False,"fallback":False,"severity":"info","sources":[],"mode":"crew_copilot"}
+
+@app.post("/diagnose")
+def diagnose(data:DiagnoseIn):
+    """Return a rule-prioritized crew health assessment grounded in up to three NASA passages."""
+    question=f"Crew report: {data.symptoms}. Severity {data.severity}/10; duration: {data.duration}; worsening: {data.worsening}. Vitals: {json.dumps(data.vitals, ensure_ascii=False)}"
+    sources=retrieve(question)[:3]
+    red_flags=("chest","breath","bleed","faint","loss of consciousness","unconscious","seizure","confus")
+    low=data.symptoms.lower()
+    critical=any(flag in low for flag in red_flags)
+    level="critical" if critical else "elevated" if data.severity>=7 or data.worsening else "routine"
+    answer_data={"summary":"No supporting NASA source found for this report.","possible_causes":[],"actions":[],"contact_ground":"Consult the mission medical protocol and crew medical officer.","confidence":"Low: no supporting passage was retrieved."}
+    if sources:
+        context="\n\n".join(f"[{i}] {s['text']}" for i,s in enumerate(sources,1))
+        prompt=("You are a cautious onboard crew-health information assistant, not a clinician. Use only NASA context. "
+                "Return valid JSON with keys summary, possible_causes (array), actions (array), contact_ground, confidence. "
+                "Do not diagnose. Do not recommend medication, doses, or treatment. If unsupported, use empty arrays and say so. "
+                "Cite any supported statement with [n]. Keep concise.\nNASA context:\n"+context+"\nReport:\n"+question+"\nJSON:")
+        try:
+            raw=generate(prompt)
+            match=re.search(r"\{.*\}",raw,re.S)
+            if match:
+                parsed=json.loads(match.group(0))
+                answer_data={k:parsed.get(k,answer_data[k]) for k in answer_data}
+                for key in ("summary","contact_ground","confidence"):
+                    if not isinstance(answer_data[key],str): answer_data[key]=str(answer_data[key])
+                for key in ("possible_causes","actions"):
+                    if not isinstance(answer_data[key],list): answer_data[key]=[]
+        except Exception:
+            answer_data["confidence"]="Low: the local model response could not be validated."
+    if critical:
+        answer_data["summary"]="Critical warning sign reported. This is not a diagnosis; follow the onboard emergency protocol now."
+        answer_data["possible_causes"]=[]
+        answer_data["actions"]=["Stop strenuous activity and alert another crew member.","Follow the onboard emergency medical checklist.","Contact the crew medical officer and ground support immediately."]
+        answer_data["contact_ground"]="Immediately, following mission communication procedures."
+        answer_data["confidence"]="Urgency set by a fixed safety rule, not by the model."
+    elif level=="elevated":
+        answer_data["summary"]="Elevated concern based on the reported severity or worsening symptoms. This is not a diagnosis."
+        answer_data["actions"]=(answer_data["actions"] or ["Notify the crew medical officer.","Record and recheck the reported vitals."])
+    with connect() as con:
+        con.execute("INSERT INTO messages(session_id,role,content) VALUES(?,?,?)",(data.session_id,"user",question))
+        mid=con.execute("INSERT INTO messages(session_id,role,content,refused) VALUES(?,?,?,?)",(data.session_id,"assistant",json.dumps(answer_data,ensure_ascii=False),int(not sources))).lastrowid
+        for rank,source in enumerate(sources,1): con.execute("INSERT INTO retrievals(message_id,chunk_id,rank,distance) VALUES(?,?,?,?)",(mid,source["chunk_id"],rank,source["distance"]))
+    return {"message_id":mid,"level":level,**answer_data,"sources":[{"n":i,**s} for i,s in enumerate(sources,1)],"disclaimer":"Guidance only, not a diagnosis. Simulated crew data only."}
 
 @app.post("/feedback")
 def feedback(data:FeedbackIn):

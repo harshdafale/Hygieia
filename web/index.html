@@ -1,1 +1,622 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="theme-color" content="#07111f"/><title>AstroRAG - Mission Health Desk</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AstroMed | Crew health, beyond Earth</title>
+<style>
+:root {
+  --bg:#05070b; --panel:#0a0e15; --ink:#f2f5fa; --muted:#8a93a6; --line:#232b3a;
+  --accent:#5aa9ff; --ok:#3ddc97; --watch:#ffb84a; --crit:#ff4d4d;
+  --btn-bg:#f2f5fa; --btn-ink:#05070b; --glow:rgba(90,169,255,.4); --earth:#02040a;
+  --stars:radial-gradient(1px 1px at 12% 20%,#fff,transparent),radial-gradient(1px 1px at 28% 62%,#fff,transparent),radial-gradient(1.5px 1.5px at 47% 14%,#fff,transparent),radial-gradient(1px 1px at 63% 48%,#fff,transparent),radial-gradient(1px 1px at 81% 22%,#fff,transparent),radial-gradient(1.5px 1.5px at 92% 58%,#fff,transparent),radial-gradient(1px 1px at 72% 8%,#fff,transparent),radial-gradient(1px 1px at 8% 70%,#fff,transparent);
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+:root[data-theme="light"] {
+  --bg:#f3f4f6; --panel:#ffffff; --ink:#0b0d12; --muted:#59627a; --line:#cdd2db;
+  --accent:#0b3d91; --ok:#12805a; --watch:#a86400; --crit:#c62828;
+  --btn-bg:#0b0d12; --btn-ink:#f3f4f6; --glow:rgba(11,61,145,.25); --earth:#dfe6f2; --stars:none;
+}
+html { scroll-padding-top:env(safe-area-inset-top,0px); }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font-family:"Barlow","Helvetica Neue",Arial,sans-serif; font-size:17px; line-height:1.55; }
+h1, h2, h3, p { margin:0; }
+.wrap { max-width:1180px; margin:0 auto; padding:0 24px; }
+.mono { font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace; }
+.caps { text-transform:uppercase; letter-spacing:.14em; font-size:12px; color:var(--muted); font-weight:500; }
+button, input, select, textarea { font:inherit; color:inherit; }
+button { cursor:pointer; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+
+/* header */
+.bar { border-bottom:1px solid var(--line); }
+.bar .wrap { display:flex; align-items:center; justify-content:space-between; gap:16px; height:64px; }
+.brand { display:flex; align-items:center; gap:12px; font-weight:600; letter-spacing:.3em; font-size:15px; text-transform:uppercase; }
+.brand img { width:34px; height:34px; object-fit:contain; }
+.nav { display:flex; gap:4px; overflow-x:auto; }
+.nav button { background:none; border:0; padding:8px 12px; text-transform:uppercase; letter-spacing:.14em; font-size:12px; font-weight:500; color:var(--muted); white-space:nowrap; border-bottom:2px solid transparent; }
+.nav button[aria-current="page"] { color:var(--ink); border-bottom-color:var(--ink); }
+.nav button.sos[aria-current="page"] { border-bottom-color:var(--crit); }
+.mode { border:1px solid var(--line); background:none; padding:7px 12px; font-size:12px; letter-spacing:.12em; text-transform:uppercase; white-space:nowrap; }
+
+/* hero */
+.hero { position:relative; overflow:hidden; min-height:600px; background-image:var(--stars); border-bottom:1px solid var(--line); }
+.hero::after { content:""; position:absolute; left:50%; bottom:-118vw; width:150vw; height:150vw; transform:translateX(-50%); border-radius:50%; background:var(--earth); box-shadow:0 -2px 0 var(--accent), 0 -40px 120px var(--glow); }
+.hero .wrap { position:relative; z-index:1; padding-top:90px; padding-bottom:230px; }
+.hero h1 { font-size:clamp(2.6rem,9vw,7rem); font-weight:600; line-height:.98; letter-spacing:.03em; text-transform:uppercase; max-width:12ch; }
+.hero p.lead { margin-top:24px; max-width:48ch; font-size:1.2rem; color:var(--muted); }
+.cta { margin-top:34px; display:flex; flex-wrap:wrap; gap:14px; }
+.btn { border:1px solid var(--ink); background:var(--btn-bg); color:var(--btn-ink); padding:15px 28px; text-transform:uppercase; letter-spacing:.16em; font-size:13px; font-weight:600; }
+.btn.ghost { background:transparent; color:var(--ink); }
+.btn.crit { background:var(--crit); border-color:var(--crit); color:#fff; }
+
+.strip { position:relative; z-index:2; margin-top:-130px; }
+.strip .cells { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); border:1px solid var(--line); background:var(--panel); }
+.cell { padding:18px 20px; border-right:1px solid var(--line); }
+.cell:last-child { border-right:0; }
+.cell .val { margin-top:6px; font-size:1.25rem; font-weight:500; }
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; background:var(--ok); }
+.dot.watch { background:var(--watch); } .dot.crit { background:var(--crit); }
+
+/* sections */
+section.page { padding:64px 0 40px; }
+.head { display:flex; justify-content:space-between; align-items:end; gap:16px; flex-wrap:wrap; margin-bottom:26px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+.head h2 { font-size:clamp(1.8rem,4vw,2.8rem); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.tile { padding:22px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--panel); }
+.tile .num { margin:14px 0 4px; font-size:2.6rem; font-weight:500; line-height:1; }
+.tile .num small { font-size:.9rem; color:var(--muted); margin-left:6px; }
+.tile .base { color:var(--muted); font-size:.9rem; margin-bottom:14px; }
+.state { text-transform:uppercase; letter-spacing:.14em; font-size:12px; font-weight:600; }
+.log { margin-top:56px; }
+.log .item { display:grid; grid-template-columns:110px 110px 1fr; gap:16px; padding:14px 0; border-bottom:1px solid var(--line); }
+
+/* diagnostics */
+.cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:0; border:1px solid var(--line); }
+.cols > div { padding:28px; background:var(--panel); }
+.cols > div + div { border-left:1px solid var(--line); }
+@media (max-width:820px) { .cols { grid-template-columns:1fr; } .cols > div + div { border-left:0; border-top:1px solid var(--line); } .log .item { grid-template-columns:1fr; gap:4px; } .cell { border-right:0; border-bottom:1px solid var(--line); } }
+label.f { display:block; margin:22px 0 8px; }
+textarea, select { width:100%; background:var(--bg); border:1px solid var(--line); padding:12px 14px; border-radius:0; }
+textarea { min-height:120px; resize:vertical; }
+input[type="range"] { width:100%; accent-color:var(--accent); }
+.rng { display:flex; gap:16px; align-items:center; }
+.rng output { font-size:1.6rem; min-width:2ch; }
+.chk { display:flex; gap:10px; align-items:center; margin-top:20px; }
+.chk input { width:18px; height:18px; accent-color:var(--accent); }
+.assess .waiting { color:var(--muted); min-height:200px; display:grid; place-items:center; text-align:center; }
+.level { display:inline-block; padding:6px 14px; border:1px solid; text-transform:uppercase; letter-spacing:.16em; font-size:12px; font-weight:600; }
+.level.ok { color:var(--ok); } .level.watch { color:var(--watch); } .level.crit { color:var(--crit); }
+.row { display:grid; grid-template-columns:130px 1fr; gap:16px; padding:16px 0; border-bottom:1px solid var(--line); }
+.row:last-child { border-bottom:0; }
+.row ul, .row ol { margin:0; padding-left:20px; }
+.fine { color:var(--muted); font-size:.9rem; }
+
+/* charts */
+.charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.chart { padding:24px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--panel); }
+.chart svg { width:100%; height:auto; display:block; margin:14px 0 8px; }
+.chart .grid { stroke:var(--line); stroke-width:1; }
+.chart .base { stroke:var(--muted); stroke-width:1; stroke-dasharray:4 4; }
+.chart .line { fill:none; stroke:var(--accent); stroke-width:2; }
+.chart .dot { fill:var(--accent); }
+.chart text { fill:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:9px; }
+
+/* log vitals */
+.btn.small { padding:10px 18px; font-size:12px; }
+.formgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border-top:1px solid var(--line); border-left:1px solid var(--line); }
+.field { padding:20px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--panel); }
+.field label { display:block; margin-bottom:10px; }
+input[type="number"] { width:100%; background:var(--bg); border:1px solid var(--line); padding:12px 14px; border-radius:0; }
+.pair { display:flex; gap:10px; }
+.formbar { display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:24px; }
+
+/* emergency */
+.sos-panel { border:1px solid var(--crit); padding:34px; background:var(--panel); }
+.sos-panel h3 { font-size:2rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.sos-first { margin-top:24px; border-top:1px solid var(--line); padding-top:20px; }
+.sos-first ol { margin:10px 0 0; padding-left:22px; }
+details { border-bottom:1px solid var(--line); padding:18px 0; }
+details:first-of-type { border-top:1px solid var(--line); margin-top:10px; }
+summary { cursor:pointer; text-transform:uppercase; letter-spacing:.12em; font-size:14px; font-weight:600; }
+details ol { margin:14px 0 0; padding-left:22px; color:var(--muted); }
+footer { border-top:1px solid var(--line); margin-top:60px; padding:28px 0 36px; color:var(--muted); font-size:.9rem; }
+[hidden] { display:none !important; }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="brand">
+      <img src="/astromed-logo.png" alt="" />
+      AstroMed
+    </div>
+    <nav class="nav" aria-label="Main">
+      <button data-tab="home" type="button">Mission control</button>
+      <button data-tab="copilot" type="button">AI copilot</button>
+      <button data-tab="log" type="button">Log vitals</button>
+      <button data-tab="check" type="button">Diagnostics</button>
+      <button data-tab="trends" type="button">Telemetry</button>
+      <button data-tab="sos" class="sos" type="button">Emergency</button>
+    </nav>
+    <button class="mode" id="modeBtn" type="button">Light mode</button>
+  </div>
+</header>
+
+<!-- MISSION CONTROL -->
+<div id="tab-home">
+  <div class="hero">
+    <div class="wrap">
+      <h1>Crew health, beyond Earth</h1>
+      <p class="lead">Offline medical intelligence for long-duration missions. Monitor the crew, assess symptoms and act, even when the ground is minutes away.</p>
+      <div class="cta">
+        <button class="btn" data-go="check" type="button">Run diagnostic</button>
+        <button class="btn ghost" data-go="sos" type="button">Emergency protocol</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap strip">
+    <div class="cells">
+      <div class="cell"><div class="caps">Mission elapsed time</div><div class="val mono" id="met">142:06:11:32</div></div>
+      <div class="cell"><div class="caps">Crew status</div><div class="val"><span class="dot"></span>Nominal</div></div>
+      <div class="cell"><div class="caps">Ground link</div><div class="val"><span class="dot watch"></span>Delayed, 12 min</div></div>
+      <div class="cell"><div class="caps">Medical AI</div><div class="val"><span class="dot"></span>Onboard, offline</div></div>
+    </div>
+  </div>
+
+  <section class="page">
+    <div class="wrap">
+      <div class="head"><h2>Crew telemetry</h2><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><span class="caps">Crew 01 &nbsp;|&nbsp; Sample data</span><button class="btn small" data-go="log" type="button">Log vitals</button></div></div>
+      <div class="tiles" id="tiles"></div>
+
+      <div class="log">
+        <div class="head"><h2>Advisories</h2><span class="caps">Last 24 hours</span></div>
+        <div id="log"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="tab-copilot" hidden>
+  <section class="page"><div class="wrap">
+    <div class="head"><h2>Onboard AI copilot</h2><span class="caps">Local Gemma · private crew support</span></div>
+    <div class="cols"><div><h3 class="caps">What do you need help with?</h3>
+      <label class="f caps" for="copilotText">Mission task or crew health question</label>
+      <textarea id="copilotText" placeholder="Draft a shift handover, organize tomorrow’s tasks, or ask about crew health…"></textarea>
+      <button class="btn" id="copilotBtn" type="button" style="margin-top:18px">Ask AstroMed</button>
+      <p class="fine" style="margin-top:12px">General crew tasks use the local model. Health questions are checked against your NASA library.</p>
+    </div><div id="copilotResult" aria-live="polite"><div class="waiting"><div><div class="caps">Ready when you are</div><p class="fine" style="margin-top:8px">Your answer will appear here.</p></div></div></div></div>
+  </div></section>
+</div>
+
+<!-- LOG VITALS -->
+<div id="tab-log" hidden>
+  <section class="page">
+    <div class="wrap">
+      <div class="head"><h2>Log vitals</h2><span class="caps">Enter what you measured. Leave the rest empty.</span></div>
+      <div class="formgrid">
+        <div class="field"><label class="caps" for="in0">Heart rate (bpm)</label><input id="in0" type="number" inputmode="decimal" step="1" min="0" placeholder="Example: 68"></div>
+        <div class="field"><label class="caps" for="in1">Blood pressure (mmHg)</label><div class="pair"><input id="in1" type="number" inputmode="decimal" min="0" placeholder="Systolic" aria-label="Systolic"><input id="in1b" type="number" inputmode="decimal" min="0" placeholder="Diastolic" aria-label="Diastolic"></div></div>
+        <div class="field"><label class="caps" for="in2">Body temperature (°C)</label><input id="in2" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 36.7"></div>
+        <div class="field"><label class="caps" for="in3">Blood oxygen (%)</label><input id="in3" type="number" inputmode="decimal" step="1" min="0" max="100" placeholder="Example: 98"></div>
+        <div class="field"><label class="caps" for="in4">Sleep last night (hours)</label><input id="in4" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 6.5"></div>
+        <div class="field"><label class="caps" for="in5">Exercise today (minutes)</label><input id="in5" type="number" inputmode="decimal" step="1" min="0" placeholder="Example: 120"></div>
+        <div class="field"><label class="caps" for="in6">Cabin CO2 (mmHg)</label><input id="in6" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 3.2"></div>
+        <div class="field"><label class="caps" for="in7">Radiation dose (mSv/day)</label><input id="in7" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 0.7"></div>
+      </div>
+      <div class="formbar">
+        <button class="btn" id="logBtn" type="button">Save to telemetry</button>
+        <button class="btn ghost" data-go="home" type="button">View mission control</button>
+        <button class="btn ghost" id="resetBtn" type="button">Reset sample data</button>
+      </div>
+      <p class="fine" id="logMsg" aria-live="polite" style="margin-top:14px"></p>
+      <p class="fine" style="margin-top:6px">Status limits are sample values for this prototype. On a real mission, wearables and cabin sensors would fill these in automatically.</p>
+    </div>
+  </section>
+</div>
+
+<!-- DIAGNOSTICS -->
+<div id="tab-check" hidden>
+  <section class="page">
+    <div class="wrap">
+      <div class="head"><h2>Medical diagnostics</h2><span class="caps">Guidance only, not a diagnosis</span></div>
+      <div class="cols">
+        <div>
+          <h3 class="caps" style="margin-bottom:6px">Crew report</h3>
+          <label class="f caps" for="symptomText">Symptoms</label>
+          <textarea id="symptomText" placeholder="Example: headache behind the eyes since this morning"></textarea>
+
+          <label class="f caps" for="severity">Severity</label>
+          <div class="rng"><input type="range" id="severity" min="1" max="10" value="4"><output id="severityOut" class="mono">4</output></div>
+
+          <label class="f caps" for="duration">Duration</label>
+          <select id="duration">
+            <option>Less than an hour</option>
+            <option selected>A few hours</option>
+            <option>About a day</option>
+            <option>More than a day</option>
+          </select>
+
+          <label class="chk"><input type="checkbox" id="worse"> Getting worse</label>
+          <button class="btn" id="checkBtn" type="button" style="margin-top:28px">Analyze</button>
+        </div>
+        <div class="assess" id="assess" aria-live="polite">
+          <div class="waiting"><div><div class="caps">Awaiting crew report</div><p class="fine" style="margin-top:8px">The assessment will appear here.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- TELEMETRY -->
+<div id="tab-trends" hidden>
+  <section class="page">
+    <div class="wrap">
+      <div class="head"><h2>Seven-day telemetry</h2><span class="caps">Dashed line is crew baseline</span></div>
+      <div class="charts">
+        <div class="chart"><div class="caps">Resting heart rate, bpm</div><svg id="chartHeart" viewBox="0 0 320 140" role="img" aria-label="Resting heart rate over seven days"></svg><p class="fine">Stable. Within baseline all week.</p></div>
+        <div class="chart"><div class="caps">Sleep, hours</div><svg id="chartSleep" viewBox="0 0 320 140" role="img" aria-label="Sleep hours over seven days"></svg><p class="fine">Below baseline for three consecutive nights.</p></div>
+        <div class="chart"><div class="caps">Radiation dose, mSv per day</div><svg id="chartRad" viewBox="0 0 320 140" role="img" aria-label="Radiation dose over seven days"></svg><p class="fine">Within the daily allowance.</p></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- EMERGENCY -->
+<div id="tab-sos" hidden>
+  <section class="page">
+    <div class="wrap">
+      <div class="head"><h2>Emergency protocol</h2><span class="caps">Follow the steps in order</span></div>
+      <div class="sos-panel">
+        <h3>Medical emergency</h3>
+        <p class="fine" style="margin-top:8px">Press the button to bring up the first actions.</p>
+        <button class="btn crit" id="sosBtn" type="button" style="margin-top:22px">Declare emergency</button>
+        <div class="sos-first" id="sosFirst" hidden>
+          <div class="caps">First actions</div>
+          <ol>
+            <li>Call out for another crew member.</li>
+            <li>Stay with the patient and keep them still and calm.</li>
+            <li>Bring the medical kit.</li>
+            <li>Contact the ground flight surgeon as soon as the link is available.</li>
+          </ol>
+        </div>
+      </div>
+
+      <details><summary>Chest pain</summary>
+        <ol><li>Stop all activity and keep the patient calm.</li><li>Follow the cardiac procedure in the onboard medical handbook.</li><li>Monitor breathing and pulse until help is available.</li><li>Contact the ground flight surgeon.</li></ol></details>
+      <details><summary>Difficulty breathing</summary>
+        <ol><li>Check cabin alarms for smoke, CO2 and low oxygen.</li><li>If the air is bad, move to clean air or use an emergency mask.</li><li>Help the patient breathe slowly and stay calm.</li><li>Alert the crew medical officer.</li></ol></details>
+      <details><summary>Severe bleeding</summary>
+        <ol><li>Apply firm direct pressure with clean gauze.</li><li>If blood soaks through, add gauze on top. Do not remove the first layer.</li><li>Keep the pressure on while others bring help.</li></ol></details>
+      <details><summary>Burn</summary>
+        <ol><li>Cool the area with a clean, cool, damp cloth for several minutes.</li><li>Do not pop blisters. Cover loosely with a clean dressing.</li><li>Large or deep burns are urgent. Alert the crew medical officer.</li></ol></details>
+      <details><summary>Head injury or loss of consciousness</summary>
+        <ol><li>Keep the patient as still as possible.</li><li>Check that they are breathing.</li><li>Give no food or drink.</li><li>Call for help and monitor closely.</li></ol></details>
+    </div>
+  </section>
+</div>
+
+<footer><div class="wrap">AstroMed is a student prototype. It gives guidance, not a diagnosis, and does not replace a physician. Sample data only.</div></footer>
+
+<script>
+// ---------- Theme ----------
+var root = document.documentElement;
+var modeBtn = document.getElementById("modeBtn");
+function applyTheme(t) {
+  if (t === "light") { root.setAttribute("data-theme", "light"); modeBtn.textContent = "Dark mode"; }
+  else { root.removeAttribute("data-theme"); modeBtn.textContent = "Light mode"; }
+}
+try { applyTheme(localStorage.getItem("astromed-theme") || "light"); } catch (e) { applyTheme("light"); }
+modeBtn.onclick = function () {
+  var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+  applyTheme(next);
+  try { localStorage.setItem("astromed-theme", next); } catch (e) {}
+};
+
+// ---------- Pages ----------
+var navButtons = document.querySelectorAll(".nav button");
+function showTab(name) {
+  var names = ["home", "copilot", "log", "check", "trends", "sos"];
+  for (var i = 0; i < names.length; i++) {
+    document.getElementById("tab-" + names[i]).hidden = (names[i] !== name);
+  }
+  for (var j = 0; j < navButtons.length; j++) {
+    if (navButtons[j].getAttribute("data-tab") === name) { navButtons[j].setAttribute("aria-current", "page"); }
+    else { navButtons[j].removeAttribute("aria-current"); }
+  }
+  window.scrollTo(0, 0);
+}
+for (var n = 0; n < navButtons.length; n++) {
+  navButtons[n].onclick = function () { showTab(this.getAttribute("data-tab")); };
+}
+var goButtons = document.querySelectorAll("[data-go]");
+for (var g = 0; g < goButtons.length; g++) {
+  goButtons[g].onclick = function () { showTab(this.getAttribute("data-go")); };
+}
+showTab("home");
+
+// Local copilot: general crew tasks use Gemma; health topics are routed to NASA RAG.
+var crewSession = null;
+async function sendCopilot(text, targetBox) {
+  targetBox.textContent = "Working with the local assistant…";
+  try {
+    if (!crewSession) {
+      const cr = await fetch("http://127.0.0.1:8000/crew");
+      if (!cr.ok) throw new Error("The local API is unavailable.");
+      const crew = await cr.json();
+      const sr = await fetch("http://127.0.0.1:8000/sessions", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({crew_id:crew[0].id})});
+      if (!sr.ok) throw new Error("Could not start a simulated crew session.");
+      crewSession = (await sr.json()).session_id;
+    }
+    const response = await fetch("http://127.0.0.1:8000/copilot", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:crewSession,question:text})});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "The local model could not answer.");
+    targetBox.replaceChildren();
+    const answer = document.createElement("p"); answer.style.whiteSpace = "pre-wrap"; answer.textContent = result.answer || "No response returned."; targetBox.appendChild(answer);
+    if (result.sources && result.sources.length) {
+      const label = document.createElement("p"); label.className = "caps"; label.style.marginTop = "22px"; label.textContent = "NASA SOURCE PASSAGES"; targetBox.appendChild(label);
+      result.sources.forEach((item, i) => { const card=document.createElement("div"); card.className="row"; const tag=document.createElement("div"); tag.className="caps"; tag.textContent="["+(item.n||i+1)+"] "+(item.title||item.filename||"NASA source"); const body=document.createElement("div"); body.textContent=(item.section||"")+(item.page?" · page "+item.page:"")+"\n"+item.text; card.append(tag,body); targetBox.appendChild(card); });
+    }
+  } catch (error) { targetBox.textContent = error.message + " Start the API and Ollama, then try again."; }
+}
+document.getElementById("copilotBtn").onclick = function () { const text=document.getElementById("copilotText").value.trim(); const box=document.getElementById("copilotResult"); if(!text){box.textContent="Enter a task or question first.";return;} sendCopilot(text,box); };
+
+
+// ---------- Mission clock (days:hours:minutes:seconds) ----------
+var startOffset = (142 * 86400) + (6 * 3600) + (11 * 60);
+var pageStart = Date.now();
+function pad(x) { return x < 10 ? "0" + x : "" + x; }
+function tick() {
+  var total = startOffset + Math.floor((Date.now() - pageStart) / 1000);
+  var d = Math.floor(total / 86400);
+  var h = Math.floor((total % 86400) / 3600);
+  var m = Math.floor((total % 3600) / 60);
+  var s = total % 60;
+  document.getElementById("met").textContent = d + ":" + pad(h) + ":" + pad(m) + ":" + pad(s);
+}
+tick();
+setInterval(tick, 1000);
+
+// ---------- Telemetry tiles (sample data) ----------
+var tiles = [
+  { name: "Heart rate", value: "68", unit: "bpm", base: "Baseline 64 to 72", status: "ok", text: "Nominal" },
+  { name: "Blood pressure", value: "118/76", unit: "mmHg", base: "Baseline 115/75", status: "ok", text: "Nominal" },
+  { name: "Body temperature", value: "36.7", unit: "°C", base: "Baseline 36.6", status: "ok", text: "Nominal" },
+  { name: "Blood oxygen", value: "98", unit: "%", base: "Baseline 97 to 99", status: "ok", text: "Nominal" },
+  { name: "Sleep", value: "5.8", unit: "h", base: "Baseline 7.0", status: "watch", text: "Watch" },
+  { name: "Exercise", value: "95", unit: "min", base: "Daily target 120", status: "watch", text: "Below target" },
+  { name: "Cabin CO2", value: "3.2", unit: "mmHg", base: "Sample alert level 5.0", status: "ok", text: "Nominal" },
+  { name: "Radiation dose", value: "0.7", unit: "mSv/day", base: "7-day average 0.6", status: "ok", text: "Nominal" }
+];
+// Limits for each tile, in the same order: [ok low, ok high, watch low, watch high]
+var limits = [
+  [50, 100, 40, 120],
+  [90, 130, 85, 145],
+  [36.1, 37.5, 35.5, 38],
+  [95, 100, 92, 100],
+  [6.5, 12, 5, 12],
+  [110, 400, 60, 400],
+  [0, 4, 0, 5],
+  [0, 1, 0, 2]
+];
+
+var tilesBox = document.getElementById("tiles");
+function renderTiles() {
+  tilesBox.innerHTML = "";
+  for (var i = 0; i < tiles.length; i++) {
+    var t = tiles[i];
+    tilesBox.innerHTML +=
+      '<div class="tile"><div class="caps">' + t.name + '</div>' +
+      '<div class="num mono">' + t.value + '<small>' + t.unit + '</small></div>' +
+      '<div class="base">' + t.base + '</div>' +
+      '<div class="state"><span class="dot ' + (t.status === "ok" ? "" : t.status) + '"></span>' + t.text + '</div></div>';
+  }
+}
+renderTiles();
+
+// ---------- Advisories ----------
+var advisories = [
+  { time: "06:12 GMT", status: "watch", label: "Watch", text: "Sleep below baseline for three consecutive nights. Review the crew sleep schedule." },
+  { time: "05:40 GMT", status: "ok", label: "Nominal", text: "Cabin air within limits." },
+  { time: "04:55 GMT", status: "ok", label: "Nominal", text: "Exercise session logged: 95 minutes." },
+  { time: "02:10 GMT", status: "ok", label: "Nominal", text: "Radiation dose within the daily allowance." }
+];
+var logBox = document.getElementById("log");
+for (var a = 0; a < advisories.length; a++) {
+  var ad = advisories[a];
+  logBox.innerHTML +=
+    '<div class="item"><span class="mono fine">' + ad.time + '</span>' +
+    '<span class="state"><span class="dot ' + (ad.status === "ok" ? "" : ad.status) + '"></span>' + ad.label + '</span>' +
+    '<span>' + ad.text + '</span></div>';
+}
+
+// ---------- Charts ----------
+function drawChart(id, data, usual, min, max) {
+  var w = 320, h = 140, left = 28, right = 10, top = 10, bottom = 22;
+  var step = (w - left - right) / (data.length - 1);
+  var points = "", dots = "", grid = "", labels = "";
+  for (var g = 0; g <= 2; g++) {
+    var gy = top + g * ((h - top - bottom) / 2);
+    var gv = max - g * ((max - min) / 2);
+    grid += '<line class="grid" x1="' + left + '" x2="' + (w - right) + '" y1="' + gy + '" y2="' + gy + '"></line>';
+    labels += '<text x="0" y="' + (gy + 3) + '">' + gv + '</text>';
+  }
+  for (var i = 0; i < data.length; i++) {
+    var x = left + i * step;
+    var y = h - bottom - ((data[i] - min) / (max - min)) * (h - top - bottom);
+    points += x.toFixed(1) + "," + y.toFixed(1) + " ";
+    dots += '<circle class="dot" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3"></circle>';
+    labels += '<text x="' + (x - 6).toFixed(1) + '" y="' + (h - 6) + '">D' + (i - data.length + 1) + '</text>';
+  }
+  var uy = h - bottom - ((usual - min) / (max - min)) * (h - top - bottom);
+  document.getElementById(id).innerHTML = grid + labels +
+    '<line class="base" x1="' + left + '" x2="' + (w - right) + '" y1="' + uy.toFixed(1) + '" y2="' + uy.toFixed(1) + '"></line>' +
+    '<polyline class="line" points="' + points + '"></polyline>' + dots;
+}
+var heartData = [67, 69, 66, 68, 70, 67, 68];
+var sleepData = [7.2, 6.9, 7.1, 6.3, 6, 5.7, 5.8];
+var radData = [0.6, 0.5, 0.6, 0.7, 0.6, 0.6, 0.7];
+function redrawCharts() {
+  drawChart("chartHeart", heartData, 68, 60, 76);
+  drawChart("chartSleep", sleepData, 7, 5, 8);
+  drawChart("chartRad", radData, 0.6, 0.4, 0.8);
+}
+redrawCharts();
+
+// ---------- Diagnostics ----------
+var slider = document.getElementById("severity");
+slider.oninput = function () { document.getElementById("severityOut").textContent = slider.value; };
+
+// DEMO LOGIC: later, replace this function with a call to your Gemma backend.
+function analyse(text, severity, worse) {
+  text = text.toLowerCase();
+  var level = "ok";
+  var redFlags = ["chest", "breath", "bleed", "faint", "unconscious", "seizure", "confus"];
+  for (var i = 0; i < redFlags.length; i++) {
+    if (text.indexOf(redFlags[i]) !== -1) { level = "crit"; }
+  }
+  if (level !== "crit" && (severity >= 7 || worse)) { level = "watch"; }
+
+  var causes = ["Several common causes are possible", "More detail is needed to narrow it down"];
+  if (text.indexOf("head") !== -1) {
+    causes = ["Elevated cabin CO2", "Fluid shift toward the head in microgravity", "Poor sleep or stress"];
+  } else if (text.indexOf("back") !== -1) {
+    causes = ["Spinal lengthening in microgravity", "Muscle strain after exercise"];
+  } else if (text.indexOf("eye") !== -1 || text.indexOf("vision") !== -1 || text.indexOf("blur") !== -1) {
+    causes = ["Eye strain from screens", "Pressure changes around the eyes during spaceflight"];
+  } else if (text.indexOf("nausea") !== -1 || text.indexOf("dizz") !== -1) {
+    causes = ["Space motion sickness", "Dehydration"];
+  } else if (text.indexOf("sleep") !== -1 || text.indexOf("tired") !== -1) {
+    causes = ["Disrupted circadian rhythm", "Stress or isolation"];
+  }
+  return { level: level, causes: causes };
+}
+
+document.getElementById("checkBtn").onclick = async function () {
+  const report=document.getElementById("symptomText").value.trim();
+  const box=document.getElementById("assess");
+  if(!report){box.textContent="Describe the symptoms, then press Analyze.";return;}
+  box.textContent="Retrieving NASA evidence and checking safety rules…";
+  try {
+    if(!crewSession){const cr=await fetch("http://127.0.0.1:8000/crew");if(!cr.ok)throw new Error("Local API unavailable.");const crew=await cr.json();const sr=await fetch("http://127.0.0.1:8000/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({crew_id:crew[0].id})});if(!sr.ok)throw new Error("Could not start simulated crew session.");crewSession=(await sr.json()).session_id;}
+    const vitals={};tiles.forEach(t=>{vitals[t.name]=t.value+" "+t.unit;});
+    const response=await fetch("http://127.0.0.1:8000/diagnose",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:crewSession,symptoms:report,severity:Number(slider.value),duration:document.getElementById("duration").value,worsening:document.getElementById("worse").checked,vitals})});
+    const result=await response.json();if(!response.ok)throw new Error(result.detail||"Assessment request failed.");
+    box.replaceChildren();const badge=document.createElement("span");badge.className="level "+(result.level==="critical"?"crit":result.level==="elevated"?"watch":"ok");badge.textContent=result.level;box.appendChild(badge);
+    const summary=document.createElement("p");summary.style.cssText="margin:16px 0 8px;font-size:1.15rem";summary.textContent=result.summary;box.appendChild(summary);
+    const put=(label,items)=>{const row=document.createElement("div");row.className="row";const title=document.createElement("div");title.className="caps";title.textContent=label;const value=document.createElement("div");if(Array.isArray(items)&&items.length){const list=document.createElement("ul");items.forEach(x=>{const li=document.createElement("li");li.textContent=x;list.appendChild(li);});value.appendChild(list);}else value.textContent=items||"Not established by the retrieved NASA passages.";row.append(title,value);box.appendChild(row);};
+    put("Possible causes",result.possible_causes);put("Actions",result.actions);put("Contact ground",result.contact_ground);put("Confidence",result.confidence);
+    if(result.sources&&result.sources.length){put("NASA evidence",result.sources.map(s=>"["+s.n+"] "+(s.title||s.filename)+" · "+(s.section||"")+(s.page?" · page "+s.page:"")));}
+    const note=document.createElement("p");note.className="fine";note.style.marginTop="18px";note.textContent=result.disclaimer;box.appendChild(note);
+  } catch(error) {box.textContent=error.message+" Start the API and Ollama, then try again.";}
+};
+
+// ---------- Emergency ----------
+document.getElementById("sosBtn").onclick = function () {
+  document.getElementById("sosFirst").hidden = false;
+};
+// ---------- Log vitals ----------
+var statusText = { ok: "Nominal", watch: "Watch", crit: "Out of range" };
+
+function getStatus(index, number) {
+  var l = limits[index];
+  if (number >= l[0] && number <= l[1]) { return "ok"; }
+  if (number >= l[2] && number <= l[3]) { return "watch"; }
+  return "crit";
+}
+
+function addPoint(list, value) {
+  list.push(value);
+  list.shift();
+}
+
+function saveData() {
+  try {
+    localStorage.setItem("astromed-data", JSON.stringify({ tiles: tiles, heart: heartData, sleep: sleepData, rad: radData }));
+  } catch (e) {}
+}
+
+function loadData() {
+  try {
+    var raw = localStorage.getItem("astromed-data");
+    if (!raw) { return; }
+    var saved = JSON.parse(raw);
+    tiles = saved.tiles;
+    heartData = saved.heart;
+    sleepData = saved.sleep;
+    radData = saved.rad;
+    renderTiles();
+    redrawCharts();
+  } catch (e) {}
+}
+
+document.getElementById("logBtn").onclick = function () {
+  var msg = document.getElementById("logMsg");
+  var now = new Date();
+  var stamp = pad(now.getUTCHours()) + ":" + pad(now.getUTCMinutes()) + " GMT";
+  var changed = 0;
+  var warnings = [];
+
+  for (var i = 0; i < tiles.length; i++) {
+    var raw = document.getElementById("in" + i).value;
+    if (raw === "") { continue; }
+    var number = Number(raw);
+    var shown = raw;
+    if (i === 1) {
+      var low = document.getElementById("in1b").value;
+      if (low === "") {
+        msg.textContent = "Blood pressure needs both numbers.";
+        return;
+      }
+      shown = raw + "/" + low;
+    }
+    var status = getStatus(i, number);
+    tiles[i].value = shown;
+    tiles[i].status = status;
+    tiles[i].text = statusText[status];
+    changed++;
+
+    if (i === 0) { addPoint(heartData, number); }
+    if (i === 4) { addPoint(sleepData, number); }
+    if (i === 7) { addPoint(radData, number); }
+
+    if (status === "watch") {
+      warnings.push({ status: "watch", label: "Watch", text: tiles[i].name + " logged at " + shown + " " + tiles[i].unit + ". Outside the usual range. Keep monitoring." });
+    }
+    if (status === "crit") {
+      warnings.push({ status: "crit", label: "Out of range", text: tiles[i].name + " logged at " + shown + " " + tiles[i].unit + ". Well outside the usual range. Notify the crew medical officer and run a diagnostic." });
+    }
+  }
+
+  if (changed === 0) {
+    msg.textContent = "Enter at least one value.";
+    return;
+  }
+
+  var box = document.getElementById("log");
+  box.insertAdjacentHTML("afterbegin",
+    '<div class="item"><span class="mono fine">' + stamp + '</span><span class="state"><span class="dot"></span>Logged</span><span>' + changed + ' value(s) entered by the crew member.</span></div>');
+  for (var w = 0; w < warnings.length; w++) {
+    box.insertAdjacentHTML("afterbegin",
+      '<div class="item"><span class="mono fine">' + stamp + '</span><span class="state"><span class="dot ' + warnings[w].status + '"></span>' + warnings[w].label + '</span><span>' + warnings[w].text + '</span></div>');
+  }
+
+  renderTiles();
+  redrawCharts();
+  saveData();
+  for (var c = 0; c < tiles.length; c++) { document.getElementById("in" + c).value = ""; }
+  document.getElementById("in1b").value = "";
+  msg.textContent = "Saved at " + stamp + ". Telemetry and charts are updated.";
+};
+
+document.getElementById("resetBtn").onclick = function () {
+  try { localStorage.removeItem("astromed-data"); } catch (e) {}
+  location.reload();
+};
+
+loadData();
+</script>
+</body>
+</html>
