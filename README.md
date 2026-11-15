@@ -1,6 +1,6 @@
 ﻿# AstroMed
 
-AstroMed is a local crew-support prototype for long-duration spaceflight. It combines a private per-crew health log, a local Qwen 2.5 7B copilot for general crew tasks, and NASA-source retrieval for health questions.
+AstroMed is a local crew-support prototype for long-duration spaceflight. It combines a private per-crew health log, Qwen 2.5 7B for the general copilot, MedGemma 1.5 for preliminary medical assessments, and NASA-source retrieval to verify suggested follow-up steps.
 
 The interface follows the supplied “AstroMed | Crew health, beyond Earth” design. The website uses Vite, the local API uses Flask, crew records use SQLite, document search uses ChromaDB, and Ollama runs the language and embedding models locally.
 
@@ -13,7 +13,7 @@ The interface follows the supplied “AstroMed | Crew health, beyond Earth” de
 - Vitals, symptom reports, advisories, and copilot conversation history are scoped to the authenticated crew member.
 - The dashboard loads each member’s latest readings, seven-day telemetry, and advisories from the API.
 - Personal baselines average that member’s previous 14 days. Readings within 10% are Nominal, within 20% are Watch, and beyond that are Out of range. Missing baselines show no data.
-- Diagnostics includes that member’s latest vitals and three latest symptom reports, retrieves up to three NASA passages, and asks the local model for a preliminary assessment. Possible explanations, next steps, and NASA-grounded contact guidance are displayed only when they cite a retrieved passage. Fixed red-flag and severity rules are shown separately from the model assessment.
+- Diagnostics includes that member’s latest vitals and three latest symptom reports and asks local MedGemma for a clearly labeled preliminary assessment. The possible explanation is model-generated. Suggested follow-up steps and contact guidance are shown only when an exact supporting quote is found in a retrieved NASA passage. Fixed red-flag and severity rules are shown separately from the model assessment.
 - General crew tasks use the local copilot. Recent turns are included to support follow-up questions.
 - Documents are indexed locally with dense embeddings. SQLite stores document metadata, chunks, retrieval audit entries, and app records.
 
@@ -26,6 +26,7 @@ Python 3.10+, Node.js and npm, Ollama, and NASA PDF, HTML, or TXT files that you
 Install the local models once:
 
     ollama pull qwen2.5:7b
+    ollama pull medgemma1.5:latest
     ollama pull nomic-embed-text
 
 Install Python and frontend dependencies from the project root:
@@ -92,14 +93,14 @@ Protected endpoints derive the owner ID from the bearer token. They do not accep
 
 ## Evaluation and configuration
 
-Change model names, chunk sizes, overlap, top-k, and paths in config/settings.py. Set `ASTROMED_LLM_MODEL` to choose another already-installed Ollama model, and `ASTRORAG_MAX_DIST` to override the retrieval threshold.
+Change model names, chunk sizes, overlap, top-k, and paths in config/settings.py. Set `ASTROMED_LLM_MODEL` for the copilot, `ASTROMED_DIAGNOSIS_MODEL` for preliminary medical assessments, and `ASTRORAG_MAX_DIST` to override the retrieval threshold. Both model overrides must name locally installed Ollama models.
 
     python -m eval.calibrate
     python -m eval.run_eval
 
 ## Limitations
 
-- Qwen 2.5 7B gives the copilot more room to follow conversational context than the former 2B model, but local model output can still be incomplete. Diagnostic results are preliminary decision support, not a definitive diagnosis; the app requires NASA citations for model-generated causes and actions, and code-based urgency rules remain separate.
+- Qwen 2.5 7B powers general crew tasks; MedGemma 1.5 generates preliminary medical possibilities. Its output can still be wrong and requires independent clinical review. The app validates each recommended step against an exact excerpt from retrieved NASA data; if no step can be verified, it leaves the action list empty. Code-based urgency rules remain separate. NASA assigns in-mission care to its Flight Medicine team, including Crew Medical Officers ([NASA standard](https://www.nasa.gov/reference/3-0-health-and-medical-care/)); Google says MedGemma output is preliminary and requires independent verification ([model card](https://developers.google.com/health-ai-developer-foundations/medgemma/model-card)).
 - Personal baselines and percentage bands are prototype logic, not clinical limits.
 - Crew accounts are for a local prototype. Tokens are hashed but do not expire and there is no account recovery.
 - Do not expose Flask’s development server publicly. No production security review has been done.

@@ -10,6 +10,7 @@ SQLITE_PATH = DB_DIR / "astrorag.sqlite"
 CHROMA_DIR = DB_DIR / "chroma"
 SCHEMA_PATH = DB_DIR / "schema.sql"
 LLM_MODEL = os.getenv("ASTROMED_LLM_MODEL", "qwen2.5:7b")
+DIAGNOSIS_MODEL = os.getenv("ASTROMED_DIAGNOSIS_MODEL", "medgemma1.5:latest")
 EMBED_MODEL = "nomic-embed-text"
 CHUNK_WORDS = 400
 OVERLAP_WORDS = 50
