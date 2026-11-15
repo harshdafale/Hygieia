@@ -222,7 +222,11 @@ def copilot():
     with connect() as db:
         history=db.execute("SELECT role,content FROM crew_chat_messages WHERE crew_id=? ORDER BY id DESC LIMIT 12",(g.crew_id,)).fetchall()
     prior="\n".join(f"{r['role'].upper()}: {r['content']}" for r in reversed(history))
-    prompt=("You are AstroMed, a local crew copilot. Use recent conversation for follow-ups. Help with planning, handovers, checklists and organizing work. Be practical and concise. Do not invent mission-specific facts, operational commands, or safety procedures. Health questions belong in the NASA-grounded diagnostics flow.\nRecent conversation:\n"+prior+"\nTask: "+question+"\nResponse:")
+    prompt=("You are AstroMed, a local crew copilot. Use recent conversation for follow-ups. Help with planning, handovers, checklists and organizing work. "
+            "Format every answer for easy scanning: start with a one-sentence summary, then use short titled sections and bullets or numbered steps when useful. "
+            "For a plan, give ordered steps and a short checklist. For a handover, separate Status, Completed, Open items, and Next shift. "
+            "For a simple question, answer directly and add context only when it helps. Be practical and clear, not overly terse. "
+            "Do not invent mission-specific facts, operational commands, or safety procedures. Health questions belong in the NASA-grounded diagnostics flow.\nRecent conversation:\n"+prior+"\nTask: "+question+"\nResponse:")
     try: answer=generate(prompt)
     except Exception as exc: return jsonify(error=f"Local Ollama assistant unavailable: {exc}"),503
     with connect() as db:
@@ -244,23 +248,44 @@ def diagnose():
         recent=db.execute("SELECT symptoms,severity,urgency,ai_answer_json,created_at FROM symptom_reports WHERE crew_id=? ORDER BY created_at DESC,id DESC LIMIT 3",(g.crew_id,)).fetchall()
     recent_vitals=serialized_vitals(vitals,baseline) if vitals else {}
     context_query=f"Symptoms: {symptoms}. Severity {severity}/10. Vitals: {json.dumps(recent_vitals,ensure_ascii=False)}"
-    sources=retrieve(context_query)[:3]
-    recent_context=[{**dict(r),"ai_answer_json":json.loads(r["ai_answer_json"])} for r in recent]
+    # Retrieval can fail when the local vector index or embedding model is unavailable.
+    # Keep the safety-rule assessment usable and explain the missing evidence instead of
+    # letting an indexing/model exception crash the entire request.
+    try:
+        sources=retrieve(context_query)[:3]
+        retrieval_error=False
+    except Exception:
+        sources=[]
+        retrieval_error=True
+    recent_context=[]
+    for row in recent:
+        item=dict(row)
+        try: item["ai_answer_json"]=json.loads(item["ai_answer_json"])
+        except (TypeError,ValueError): item["ai_answer_json"]={}
+        recent_context.append(item)
     red_flags=("chest","breath","bleed","faint","loss of consciousness","unconscious","seizure","confus")
     critical=any(term in symptoms.lower() for term in red_flags)
     urgency="Critical" if critical else "Elevated" if severity>=7 or data.get("worsening") else "Routine"
-    answer={"summary":"No supporting NASA source found for this report.","possible_causes":[],"actions":[],"contact_ground":"Use the onboard protocol and contact the crew medical officer.","confidence":"Low: no supporting passage retrieved."}
+    answer={"summary":"I could not find a NASA passage that directly supports a more specific explanation. This is not a diagnosis.","possible_causes":[],"actions":["Record when the symptoms started and whether they are changing.","Review the relevant onboard medical checklist with the crew medical officer.","Recheck and log the available vitals; contact ground support if symptoms persist or worsen."],"contact_ground":"Contact the crew medical officer; follow the onboard escalation protocol if symptoms worsen or a warning sign appears.","confidence":"Limited: no supporting NASA passage was available."}
     if sources:
         chunks="\n\n".join(f"[{i}] {s['text']}" for i,s in enumerate(sources,1))
-        prompt=("You are an onboard crew-health information assistant, not a clinician. Return JSON only with summary, possible_causes (array), actions (array), contact_ground, confidence. Use only supplied NASA passages and personal context. Never give a final diagnosis, medication, dose, or unsupported treatment. Put [n] citations on every evidence-based claim. If unsupported, say that and use empty arrays.\nReport and vitals: "+context_query+"\nRecent symptom history: "+json.dumps(recent_context,ensure_ascii=False)+"\nNASA passages:\n"+chunks+"\nJSON:")
+        prompt=("You are an onboard crew-health information assistant, not a clinician. Return JSON only with summary, possible_causes (array), actions (array), contact_ground, confidence. "
+                "Use only supplied NASA passages and personal context. Never give a final diagnosis, medication, dose, or unsupported treatment. "
+                "Put [n] citations on every evidence-based claim. Keep the summary to 2-3 complete sentences, possible causes to supported possibilities only, "
+                "and give 3-5 clear, safe next steps. Do not leave actions empty; if evidence is limited, give only general documentation, monitoring, and escalation steps. "
+                "If a field is unsupported, say so clearly.\nReport and vitals: "+context_query+"\nRecent symptom history: "+json.dumps(recent_context,ensure_ascii=False)+"\nNASA passages:\n"+chunks+"\nJSON:")
         try:
             raw=generate(prompt); start=raw.find("{"); end=raw.rfind("}")
             parsed=json.loads(raw[start:end+1]) if start>=0 and end>start else {}
             for key in answer:
                 value=parsed.get(key)
-                if key in ("possible_causes","actions") and isinstance(value,list): answer[key]=value
+                if key in ("possible_causes","actions") and isinstance(value,list): answer[key]=[str(item).strip() for item in value if str(item).strip()]
                 elif key not in ("possible_causes","actions") and isinstance(value,str): answer[key]=value
-        except Exception: answer["confidence"]="Low: the local model response could not be validated."
+            if not answer["actions"]:
+                answer["actions"]=["Record when the symptoms started and whether they are changing.","Review the relevant onboard medical checklist with the crew medical officer.","Recheck and log the available vitals; contact ground support if symptoms persist or worsen."]
+        except Exception: answer["confidence"]="Limited: the local model response could not be validated. General next steps are shown."
+    if retrieval_error:
+        answer["confidence"]="Limited: the local NASA search service was unavailable, so no source passages could be checked."
     if critical:
         answer.update(summary="Critical warning sign reported. This is not a diagnosis; follow the onboard emergency protocol now.",possible_causes=[],actions=["Alert another crew member.","Follow the onboard emergency medical checklist.","Contact the crew medical officer and ground support immediately."],contact_ground="Immediately, following mission communication procedures.",confidence="Urgency set by a fixed safety rule, not by the model.")
     elif urgency=="Elevated":
