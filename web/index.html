@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -126,7 +126,7 @@ footer { border-top:1px solid var(--line); margin-top:60px; padding:28px 0 36px;
 </head>
 <body>
 
-<style>.auth-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:grid;place-items:center;padding:20px}.auth-gate[hidden]{display:none}.auth-card{max-width:420px;width:100%;padding:30px;background:var(--panel);border:1px solid var(--line)}.auth-card img{width:60px;height:60px;object-fit:contain;display:block;margin:auto}.auth-card label{display:block;margin:14px 0 6px}.auth-card input,.auth-card select{width:100%;padding:11px;background:var(--bg);border:1px solid var(--line)}.auth-error{color:var(--crit);min-height:1em}</style><div class='auth-gate' id='authGate'><form class='auth-card' id='authForm'><img src='/astromed-logo.png' alt=''><p class='caps'>LOCAL CREW DATABASE</p><h1>Welcome aboard</h1><p class='fine'>Each crew member has a private history.</p><label>Crew member</label><select id='crewPicker'></select><label>PIN</label><input id='pinEntry' type='password' inputmode='numeric' minlength='4' maxlength='12' required><p class='auth-error' id='authError'></p><button class='btn'>Sign in</button><button type='button' id='showRegister'>Register crew member</button><div id='registerFields' hidden><label>Name</label><input id='regName'><label>Role</label><input id='regRole'><button type='button' class='btn' id='regButton'>Create profile</button></div></form></div><header class="bar">
+<style>.auth-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:grid;place-items:center;padding:24px}.auth-gate[hidden]{display:none}.auth-card{width:min(100%,440px);padding:34px;background:var(--panel);border:1px solid var(--line);box-shadow:0 18px 55px #08101e18}.auth-card>img{display:block;width:72px;height:72px;object-fit:contain;margin:0 auto 12px}.auth-card h1,.auth-card .fine{text-align:center}.auth-card label{display:block;margin:16px 0 7px}.auth-card input,.auth-card select{width:100%;padding:12px 13px;background:var(--bg);border:1px solid var(--line);font:inherit}.auth-card .btn{width:100%;margin-top:18px}.auth-card .auth-link{display:block;margin:18px auto 0;border:0;background:none;color:var(--accent);text-decoration:underline}.auth-error{min-height:1.2em;color:var(--crit);margin:10px 0}.auth-note{text-align:center;color:var(--muted);font-size:.85rem;margin-top:18px}</style><div class="auth-gate" id="authGate"><form class="auth-card" id="authForm"><img src="/astromed-logo.png" alt="AstroMed logo"><p class="caps">ASTROMED CREW ACCESS</p><h1 id="authTitle">Welcome aboard</h1><p class="fine" id="authSubtitle">Sign in to view your personal telemetry and history.</p><div id="loginFields"><label for="crewPicker">Crew member</label><select id="crewPicker" required></select><label for="pinEntry">Personal PIN</label><input id="pinEntry" type="password" inputmode="numeric" minlength="4" maxlength="12" autocomplete="current-password" required><button class="btn" type="submit">Sign in</button><button class="auth-link" id="showRegister" type="button">New here? Create a crew profile</button></div><div id="registerFields" hidden><label for="regName">Crew member name</label><input id="regName"><label for="regRole">Role</label><input id="regRole" placeholder="Flight engineer"><label for="regPin">Create a 4 to 12 digit PIN</label><input id="regPin" type="password" inputmode="numeric" minlength="4" maxlength="12"><button class="btn" id="regButton" type="button">Create profile</button><button class="auth-link" id="showLogin" type="button">Already registered? Sign in</button></div><p class="auth-error" id="authError" aria-live="polite"></p><p class="auth-note">PIN hashes only. Use simulated crew data.</p></form></div><header class="bar">
   <div class="wrap">
     <div class="brand">
       <img src="/astromed-logo.png" alt="" />
@@ -181,10 +181,10 @@ footer { border-top:1px solid var(--line); margin-top:60px; padding:28px 0 36px;
 
 <div id="tab-copilot" hidden>
   <section class="page"><div class="wrap">
-    <div class="head"><h2>Onboard AI copilot</h2><span class="caps">Local Gemma Â· private crew support</span></div>
+    <div class="head"><h2>Onboard AI copilot</h2><span class="caps">Local Gemma · private crew support</span></div>
     <div class="cols"><div><h3 class="caps">What do you need help with?</h3>
       <label class="f caps" for="copilotText">Mission task or crew health question</label>
-      <textarea id="copilotText" placeholder="Draft a shift handover, organize tomorrowâ€™s tasks, or ask about crew healthâ€¦"></textarea>
+      <textarea id="copilotText" placeholder="Draft a shift handover, organize tomorrow's tasks, or ask about crew health..."></textarea>
       <button class="btn" id="copilotBtn" type="button" style="margin-top:18px">Ask AstroMed</button>
       <p class="fine" style="margin-top:12px">General crew tasks use the local model. Health questions are checked against your NASA library.</p>
     </div><div id="copilotResult" aria-live="polite"><div class="waiting"><div><div class="caps">Ready when you are</div><p class="fine" style="margin-top:8px">Your answer will appear here.</p></div></div></div></div>
@@ -199,7 +199,7 @@ footer { border-top:1px solid var(--line); margin-top:60px; padding:28px 0 36px;
       <div class="formgrid">
         <div class="field"><label class="caps" for="in0">Heart rate (bpm)</label><input id="in0" type="number" inputmode="decimal" step="1" min="0" placeholder="Example: 68"></div>
         <div class="field"><label class="caps" for="in1">Blood pressure (mmHg)</label><div class="pair"><input id="in1" type="number" inputmode="decimal" min="0" placeholder="Systolic" aria-label="Systolic"><input id="in1b" type="number" inputmode="decimal" min="0" placeholder="Diastolic" aria-label="Diastolic"></div></div>
-        <div class="field"><label class="caps" for="in2">Body temperature (Â°C)</label><input id="in2" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 36.7"></div>
+        <div class="field"><label class="caps" for="in2">Body temperature (°C)</label><input id="in2" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 36.7"></div>
         <div class="field"><label class="caps" for="in3">Blood oxygen (%)</label><input id="in3" type="number" inputmode="decimal" step="1" min="0" max="100" placeholder="Example: 98"></div>
         <div class="field"><label class="caps" for="in4">Sleep last night (hours)</label><input id="in4" type="number" inputmode="decimal" step="0.1" min="0" placeholder="Example: 6.5"></div>
         <div class="field"><label class="caps" for="in5">Exercise today (minutes)</label><input id="in5" type="number" inputmode="decimal" step="1" min="0" placeholder="Example: 120"></div>
@@ -340,7 +340,7 @@ showTab("home");
 // Local copilot: general crew tasks use Gemma; health topics are routed to NASA RAG.
 var crewSession = null;
 async function sendCopilot(text, targetBox) {
-  targetBox.textContent = "Working with the local assistantâ€¦";
+  targetBox.textContent = "Working with the local assistant...";
   try {
     if (!crewSession) {
       const cr = await fetch("http://127.0.0.1:8000/crew");
@@ -357,7 +357,7 @@ async function sendCopilot(text, targetBox) {
     const answer = document.createElement("p"); answer.style.whiteSpace = "pre-wrap"; answer.textContent = result.answer || "No response returned."; targetBox.appendChild(answer);
     if (result.sources && result.sources.length) {
       const label = document.createElement("p"); label.className = "caps"; label.style.marginTop = "22px"; label.textContent = "NASA SOURCE PASSAGES"; targetBox.appendChild(label);
-      result.sources.forEach((item, i) => { const card=document.createElement("div"); card.className="row"; const tag=document.createElement("div"); tag.className="caps"; tag.textContent="["+(item.n||i+1)+"] "+(item.title||item.filename||"NASA source"); const body=document.createElement("div"); body.textContent=(item.section||"")+(item.page?" Â· page "+item.page:"")+"\n"+item.text; card.append(tag,body); targetBox.appendChild(card); });
+      result.sources.forEach((item, i) => { const card=document.createElement("div"); card.className="row"; const tag=document.createElement("div"); tag.className="caps"; tag.textContent="["+(item.n||i+1)+"] "+(item.title||item.filename||"NASA source"); const body=document.createElement("div"); body.textContent=(item.section||"")+(item.page?" · page "+item.page:"")+"\n"+item.text; card.append(tag,body); targetBox.appendChild(card); });
     }
   } catch (error) { targetBox.textContent = error.message + " Start the API and Ollama, then try again."; }
 }
@@ -383,7 +383,7 @@ setInterval(tick, 1000);
 var tiles = [
   { name: "Heart rate", value: "68", unit: "bpm", base: "Baseline 64 to 72", status: "ok", text: "Nominal" },
   { name: "Blood pressure", value: "118/76", unit: "mmHg", base: "Baseline 115/75", status: "ok", text: "Nominal" },
-  { name: "Body temperature", value: "36.7", unit: "Â°C", base: "Baseline 36.6", status: "ok", text: "Nominal" },
+  { name: "Body temperature", value: "36.7", unit: "°C", base: "Baseline 36.6", status: "ok", text: "Nominal" },
   { name: "Blood oxygen", value: "98", unit: "%", base: "Baseline 97 to 99", status: "ok", text: "Nominal" },
   { name: "Sleep", value: "5.8", unit: "h", base: "Baseline 7.0", status: "watch", text: "Watch" },
   { name: "Exercise", value: "95", unit: "min", base: "Daily target 120", status: "watch", text: "Below target" },
@@ -498,7 +498,7 @@ document.getElementById("checkBtn").onclick = async function () {
   const report=document.getElementById("symptomText").value.trim();
   const box=document.getElementById("assess");
   if(!report){box.textContent="Describe the symptoms, then press Analyze.";return;}
-  box.textContent="Retrieving NASA evidence and checking safety rulesâ€¦";
+  box.textContent="Retrieving NASA evidence and checking safety rules...";
   try {
     if(!crewSession){const cr=await fetch("http://127.0.0.1:8000/crew");if(!cr.ok)throw new Error("Local API unavailable.");const crew=await cr.json();const sr=await fetch("http://127.0.0.1:8000/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({crew_id:crew[0].id})});if(!sr.ok)throw new Error("Could not start simulated crew session.");crewSession=(await sr.json()).session_id;}
     const vitals={};tiles.forEach(t=>{vitals[t.name]=t.value+" "+t.unit;});
@@ -508,7 +508,7 @@ document.getElementById("checkBtn").onclick = async function () {
     const summary=document.createElement("p");summary.style.cssText="margin:16px 0 8px;font-size:1.15rem";summary.textContent=result.summary;box.appendChild(summary);
     const put=(label,items)=>{const row=document.createElement("div");row.className="row";const title=document.createElement("div");title.className="caps";title.textContent=label;const value=document.createElement("div");if(Array.isArray(items)&&items.length){const list=document.createElement("ul");items.forEach(x=>{const li=document.createElement("li");li.textContent=x;list.appendChild(li);});value.appendChild(list);}else value.textContent=items||"Not established by the retrieved NASA passages.";row.append(title,value);box.appendChild(row);};
     put("Possible causes",result.possible_causes);put("Actions",result.actions);put("Contact ground",result.contact_ground);put("Confidence",result.confidence);
-    if(result.sources&&result.sources.length){put("NASA evidence",result.sources.map(s=>"["+s.n+"] "+(s.title||s.filename)+" Â· "+(s.section||"")+(s.page?" Â· page "+s.page:"")));}
+    if(result.sources&&result.sources.length){put("NASA evidence",result.sources.map(s=>"["+s.n+"] "+(s.title||s.filename)+" · "+(s.section||"")+(s.page?" · page "+s.page:"")));}
     const note=document.createElement("p");note.className="fine";note.style.marginTop="18px";note.textContent=result.disclaimer;box.appendChild(note);
   } catch(error) {box.textContent=error.message+" Start the API and Ollama, then try again.";}
 };
@@ -622,13 +622,13 @@ loadData();
 (()=>{const A='http://127.0.0.1:5000';let T=sessionStorage.getItem('astromed-token')||'';const G=document.getElementById('authGate'),P=document.getElementById('crewPicker'),E=document.getElementById('authError'),H=()=>({'Content-Type':'application/json','Authorization':'Bearer '+T});
 async function members(){try{let a=await(await fetch(A+'/api/crew-members')).json();P.replaceChildren(...a.map(c=>{let o=document.createElement('option');o.value=c.id;o.textContent=c.name+' - '+c.role;return o}))}catch{E.textContent='Flask API is unavailable.'}}
 document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();try{let r=await fetch(A+'/api/login',{method:'POST',headers:H(),body:JSON.stringify({crew_id:+P.value,pin:document.getElementById('pinEntry').value})}),d=await r.json();if(!r.ok)throw Error(d.error);T=d.token;sessionStorage.setItem('astromed-token',T);G.hidden=true;await load()}catch(x){E.textContent=x.message}};
-document.getElementById('showRegister').onclick=()=>document.getElementById('registerFields').hidden=!document.getElementById('registerFields').hidden;
-document.getElementById('regButton').onclick=async()=>{try{let r=await fetch(A+'/api/register',{method:'POST',headers:H(),body:JSON.stringify({name:document.getElementById('regName').value,role:document.getElementById('regRole').value,pin:document.getElementById('pinEntry').value})}),d=await r.json();if(!r.ok)throw Error(d.error);await members();E.textContent='Profile created. Select your name and sign in.'}catch(x){E.textContent=x.message}};
-async function load(){let r=await fetch(A+'/api/dashboard',{headers:H()});if(!r.ok)throw Error('Could not load private telemetry.');let d=await r.json(),v=d.latest||{},b=d.baseline||{};tiles.forEach(t=>{let f={'Heart rate':'heart_rate','Blood pressure':'systolic','Body temperature':'temperature','Blood oxygen':'spo2','Sleep':'sleep_hours','Exercise':'exercise_min','Cabin CO2':'co2','Radiation dose':'radiation'}[t.name],n=v[f];t.value=n==null?'â€”':String(n);if(f==='systolic'&&n!=null&&v.diastolic!=null)t.value+='/'+v.diastolic;t.base=b[f]==null?'No personal baseline':'14-day average '+Number(b[f]).toFixed(1);let q=v.status?.[f]||'Nominal';t.status=q==='Out of range'?'crit':q==='Watch'?'watch':'ok';t.text=n==null?'No data':q});renderTiles();logBox.replaceChildren(...(d.advisories||[]).map(a=>{let x=document.createElement('div');x.className='item';x.textContent=a.created_at+' - '+a.status+' - '+a.text;return x}));heartData=d.logs.map(x=>x.heart_rate).filter(x=>x!=null);sleepData=d.logs.map(x=>x.sleep_hours).filter(x=>x!=null);radData=d.logs.map(x=>x.radiation).filter(x=>x!=null);redrawCharts()}
+document.getElementById('showRegister').onclick=()=>{document.getElementById('loginFields').hidden=true;document.getElementById('registerFields').hidden=false;document.getElementById('authTitle').textContent='Create your crew profile';document.getElementById('authSubtitle').textContent='Choose a private PIN for your personal history.';E.textContent=''};document.getElementById('showLogin').onclick=()=>{document.getElementById('registerFields').hidden=true;document.getElementById('loginFields').hidden=false;document.getElementById('authTitle').textContent='Welcome aboard';document.getElementById('authSubtitle').textContent='Sign in to view your personal telemetry and history.';E.textContent=''};
+document.getElementById('regButton').onclick=async()=>{try{let r=await fetch(A+'/api/register',{method:'POST',headers:H(),body:JSON.stringify({name:document.getElementById('regName').value,role:document.getElementById('regRole').value,pin:document.getElementById('regPin').value})}),d=await r.json();if(!r.ok)throw Error(d.error);await members();const found=[...P.options].find(o=>o.textContent.startsWith(document.getElementById('regName').value));if(found)P.value=found.value;document.getElementById('registerFields').hidden=true;document.getElementById('loginFields').hidden=false;document.getElementById('authTitle').textContent='Profile created';document.getElementById('authSubtitle').textContent='Select your profile and sign in.';E.textContent='Profile ready. Enter your PIN to continue.';document.getElementById('pinEntry').value=document.getElementById('regPin').value;document.getElementById('regPin').value=''}catch(x){E.textContent=x.message}};
+async function load(){let r=await fetch(A+'/api/dashboard',{headers:H()});if(!r.ok)throw Error('Could not load private telemetry.');let d=await r.json(),v=d.latest||{},b=d.baseline||{};tiles.forEach(t=>{let f={'Heart rate':'heart_rate','Blood pressure':'systolic','Body temperature':'temperature','Blood oxygen':'spo2','Sleep':'sleep_hours','Exercise':'exercise_min','Cabin CO2':'co2','Radiation dose':'radiation'}[t.name],n=v[f];t.value=n==null?'-':String(n);if(f==='systolic'&&n!=null&&v.diastolic!=null)t.value+='/'+v.diastolic;t.base=b[f]==null?'No personal baseline':'14-day average '+Number(b[f]).toFixed(1);let q=v.status?.[f]||'Nominal';t.status=q==='Out of range'?'crit':q==='Watch'?'watch':'ok';t.text=n==null?'No data':q});renderTiles();logBox.replaceChildren(...(d.advisories||[]).map(a=>{let x=document.createElement('div');x.className='item';x.textContent=a.created_at+' - '+a.status+' - '+a.text;return x}));heartData=d.logs.map(x=>x.heart_rate).filter(x=>x!=null);sleepData=d.logs.map(x=>x.sleep_hours).filter(x=>x!=null);radData=d.logs.map(x=>x.radiation).filter(x=>x!=null);redrawCharts()}
 document.getElementById('logBtn').onclick=async()=>{let fs=['heart_rate','systolic','diastolic','temperature','spo2','sleep_hours','exercise_min','co2','radiation'],o={};const ids=['in0','in1','in1b','in2','in3','in4','in5','in6','in7'];fs.forEach((k,i)=>o[k]=document.getElementById(ids[i]).value);try{let r=await fetch(A+'/api/vitals',{method:'POST',headers:H(),body:JSON.stringify(o)}),d=await r.json();if(!r.ok)throw Error(d.error);document.getElementById('logMsg').textContent='Saved to your private history.';document.querySelectorAll('.formgrid input').forEach(x=>x.value='');await load()}catch(x){document.getElementById('logMsg').textContent=x.message}};document.getElementById('resetBtn').hidden=true;
 document.getElementById('copilotBtn').onclick=async()=>{let b=document.getElementById('copilotResult');try{let r=await fetch(A+'/api/copilot',{method:'POST',headers:H(),body:JSON.stringify({question:document.getElementById('copilotText').value})}),d=await r.json();if(!r.ok)throw Error(d.error);b.textContent=d.answer}catch(x){b.textContent=x.message}};
 document.getElementById('checkBtn').onclick=async()=>{let b=document.getElementById('assess'),symptoms=document.getElementById('symptomText').value.trim();try{let r=await fetch(A+'/diagnose',{method:'POST',headers:H(),body:JSON.stringify({symptoms,severity:+slider.value,duration:document.getElementById('duration').value,worsening:document.getElementById('worse').checked})}),d=await r.json();if(!r.ok)throw Error(d.error);b.textContent=d.urgency+': '+d.summary+'\n'+(d.actions||[]).join('\n')+'\n'+(d.sources||[]).map(s=>'['+s.n+'] '+s.title+' p.'+s.page).join('\n');await load()}catch(x){b.textContent=x.message}};
-async function init(){await members();if(T)try{await load();G.hidden=true}catch{T='';sessionStorage.removeItem('astromed-token')}}init()})();
+async function init(){await members();if(!P.options.length){document.getElementById('loginFields').hidden=true;document.getElementById('registerFields').hidden=false;document.getElementById('authTitle').textContent='Create the first crew profile';document.getElementById('authSubtitle').textContent='Register a name, role, and PIN to get started.'}if(T)try{await load();G.hidden=true}catch{T='';sessionStorage.removeItem('astromed-token')}}init()})();
 </script></body>
 </html>
 
