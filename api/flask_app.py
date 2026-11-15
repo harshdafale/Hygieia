@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from api.db import connect
 from config.settings import WEB_ORIGIN
-from rag.retrieve import retrieve
+from rag.retrieve import retrieve, retrieve_matching
 from rag.generate import generate
 from rag.evidence import validate_nasa_actions, parse_json_object
 from config.settings import LLM_MODEL
@@ -242,6 +242,48 @@ def copilot():
         db.execute("INSERT INTO crew_chat_messages(crew_id,role,content) VALUES(?,?,?)",(g.crew_id,"assistant",answer))
     return jsonify(answer=answer)
 
+def _evidence_sentence(source: dict, needle: str) -> str:
+    text=str(source.get("text", ""))
+    start=text.casefold().find(needle.casefold())
+    if start<0: return ""
+    sentence_start=max(text.rfind(".",0,start),text.rfind("\n",0,start))+1
+    sentence_end=text.find(".",start)
+    if sentence_end<0: sentence_end=min(len(text),start+320)
+    return text[sentence_start:sentence_end+1].strip()
+
+def _nasa_symptom_actions(symptoms: str, sources: list[dict]) -> tuple[list[str],list[dict]]:
+    """Return only symptom-specific actions whose NASA passage is in this result set."""
+    low=symptoms.casefold()
+    headache=any(term in low for term in ("headache","head pain","migraine"))
+    vomiting=any(term in low for term in ("vomit","vomating","throwing up","threw up","emesis"))
+    if not headache and not vomiting: return [],[]
+    candidates=[]
+    for index,source in enumerate(sources,1):
+        text=str(source.get("text",""))
+        folded=text.casefold()
+        if ("crew medical officers" in folded and "flight medicine team" in folded
+                and (headache or vomiting)):
+            quote=_evidence_sentence(source,"managed by the Flight Medicine team")
+            candidates.append({"step":"Report the symptom to your Crew Medical Officer or Flight Medicine team for assessment; NASA assigns in-mission medical management to that team.","source":index,"evidence_quote":quote})
+        if headache and ("headache (co2 related)" in folded or "co2 headache" in folded) and "headache (space-adaptation related)" in folded:
+            needle="Headache (CO2 related)" if "headache (co2 related)" in folded else "CO2 Headache"
+            quote=_evidence_sentence(source,needle)
+            candidates.append({"step":"Ask the medical team to consider NASA-listed spaceflight factors, including CO2-related and space-adaptation headaches; the standard lists these for mission risk assessment.","source":index,"evidence_quote":quote})
+        if vomiting and "vomitus" in folded and "into the habitable volume during microgravity" in folded:
+            quote="vomitus, or menses into the habitable volume during microgravity and partial gravity operations"
+            candidates.append({"step":"Keep vomitus contained so it does not escape into the cabin; NASA identifies cabin containment as a crew and hardware safety measure in microgravity.","source":index,"evidence_quote":quote})
+        if vomiting and "naso-pharyngeal space" in folded and "interfere with a crewmember" in folded:
+            quote="naso-pharyngeal space"
+            candidates.append({"step":"If vomiting occurs inside a suit, keep vomitus away from the crew member's naso-pharyngeal space; NASA also notes that accumulation can interfere with vision.","source":index,"evidence_quote":quote})
+    unique=[]
+    seen_steps=set()
+    for item in candidates:
+        key=item["step"].casefold()
+        if key not in seen_steps:
+            unique.append(item)
+            seen_steps.add(key)
+    return validate_nasa_actions(unique,sources)
+
 @app.post("/diagnose")
 @crew_required
 def diagnose():
@@ -271,12 +313,26 @@ def diagnose():
     # Retrieval can fail when the local vector index or embedding model is unavailable.
     # Keep the safety-rule assessment usable and explain the missing evidence instead of
     # letting an indexing/model exception crash the entire request.
+    low_symptoms=symptoms.casefold()
+    has_headache=any(term in low_symptoms for term in ("headache","head pain","migraine"))
+    has_vomiting=any(term in low_symptoms for term in ("vomit","vomating","throwing up","threw up","emesis"))
     try:
-        sources=retrieve(context_query)[:3]
+        sources=retrieve(context_query)
         retrieval_error=False
     except Exception:
         sources=[]
         retrieval_error=True
+    direct_terms=[]
+    if has_headache or has_vomiting: direct_terms.append("Crew Medical Officers")
+    if has_headache: direct_terms.append("Headache (CO2 related)")
+    if has_vomiting: direct_terms.extend(("naso-pharyngeal space","vomitus, or menses into the habitable volume"))
+    if direct_terms:
+        try:
+            seen={source.get("chunk_id") for source in sources}
+            sources.extend(source for source in retrieve_matching(direct_terms) if source.get("chunk_id") not in seen)
+        except Exception:
+            pass
+    retrieval_error=retrieval_error and not sources
     red_flags=("chest","breath","bleed","faint","loss of consciousness","unconscious","seizure","confus")
     critical=any(term in symptoms.lower() for term in red_flags)
     urgency="Critical" if critical else "Elevated" if severity>=7 or data.get("worsening") else "Routine"
@@ -302,7 +358,11 @@ def diagnose():
         answer["summary"]=answer["preliminary_assessment"]
     except Exception as exc:
         answer["confidence"]=f"The local medical model could not produce an assessment: {exc}"
-    if sources:
+    answer["actions"],answer["action_evidence"]=_nasa_symptom_actions(symptoms,sources)
+    if answer["actions"] and answer["action_evidence"]:
+        answer["contact_ground"]=answer["actions"][0]
+        answer["contact_ground_evidence"]=answer["action_evidence"][0]
+    if sources and not answer["actions"]:
         chunks="\n\n".join(f"[{i}] NASA document: {s.get('title') or s.get('filename') or 'NASA source'}; section: {s.get('section') or 'not listed'}; page: {s.get('page') or 'not listed'}\n{s['text']}" for i,s in enumerate(sources,1))
         action_prompt=("You are extracting follow-up steps from NASA text for a crew-health report. Use only the numbered NASA passages below. Do not diagnose. "
                        "Return only steps directly supported by these passages. Return each step as {step, source, evidence_quote}, where evidence_quote is an exact excerpt of at least 20 characters from that numbered passage. "
