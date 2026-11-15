@@ -66,46 +66,56 @@ def copilot(data:CopilotIn):
 
 @app.post("/diagnose")
 def diagnose(data:DiagnoseIn):
-    """Return a rule-prioritized crew health assessment grounded in up to three NASA passages."""
+    """Return a preliminary assessment whose medical claims cite NASA passages."""
     question=f"Crew report: {data.symptoms}. Severity {data.severity}/10; duration: {data.duration}; worsening: {data.worsening}. Vitals: {json.dumps(data.vitals, ensure_ascii=False)}"
-    sources=retrieve(question)[:3]
+    try: sources=retrieve(question)[:3]; retrieval_error=False
+    except Exception: sources=[]; retrieval_error=True
     red_flags=("chest","breath","bleed","faint","loss of consciousness","unconscious","seizure","confus")
     low=data.symptoms.lower()
     critical=any(flag in low for flag in red_flags)
     level="critical" if critical else "elevated" if data.severity>=7 or data.worsening else "routine"
-    answer_data={"summary":"No supporting NASA source found for this report.","possible_causes":[],"actions":[],"contact_ground":"Consult the mission medical protocol and crew medical officer.","confidence":"Low: no supporting passage was retrieved."}
+    answer_data={"likely_explanation":"The retrieved NASA passages do not support a specific preliminary diagnosis.","preliminary_assessment":"The retrieved NASA passages do not establish a symptom-specific preliminary explanation.","summary":"The retrieved NASA passages do not establish a symptom-specific preliminary explanation.","possible_causes":[],"actions":[],"contact_ground":"The retrieved passages do not specify a symptom-specific contact threshold. Follow the approved onboard protocol and consult the crew medical officer for mission-specific direction.","confidence":"Limited: no directly supporting NASA passage was available.","safety_override":""}
     if sources:
-        context="\n\n".join(f"[{i}] {s['text']}" for i,s in enumerate(sources,1))
-        prompt=("You are a cautious onboard crew-health information assistant, not a clinician. Use only NASA context. "
-                "Return valid JSON with keys summary, possible_causes (array), actions (array), contact_ground, confidence. "
-                "Do not diagnose. Do not recommend medication, doses, or treatment. If unsupported, use empty arrays and say so. "
-                "Cite any supported statement with [n]. Keep concise.\nNASA context:\n"+context+"\nReport:\n"+question+"\nJSON:")
+        context="\n\n".join(f"[{i}] NASA document: {s.get('title') or s.get('filename') or 'NASA source'}; section: {s.get('section') or 'not listed'}; page: {s.get('page') or 'not listed'}\n{s['text']}" for i,s in enumerate(sources,1))
+        prompt=("You are AstroMed's preliminary crew-health assessment assistant. Analyze the reported symptoms, severity, duration, worsening, and reported vitals. "
+                "Use the supplied NASA passages as the sole authority for medical explanations and recommended actions. "
+                "Give the best-supported preliminary diagnosis or physiological explanation only when a passage supports it; explain matching details and missing information. "
+                "Do not default to 'no' when a cautious, cited possibility is supported. Do not give a definitive diagnosis or invent treatments, medication, doses, thresholds, or NASA procedures. "
+                "Cite each possible cause, action, and contact-ground recommendation with [n]. If unsupported, leave its array empty and state the evidence gap. "
+                "Return one JSON object only with keys: likely_explanation, preliminary_assessment, summary, possible_causes (array), actions (array), contact_ground, confidence, safety_override. "
+                "Do not use markdown fences.\nReport and vitals:\n"+question+"\nNASA passages (cite only these):\n"+context+"\nJSON:")
         try:
             raw=generate(prompt)
             match=re.search(r"\{.*\}",raw,re.S)
-            if match:
-                parsed=json.loads(match.group(0))
-                answer_data={k:parsed.get(k,answer_data[k]) for k in answer_data}
-                for key in ("summary","contact_ground","confidence"):
-                    if not isinstance(answer_data[key],str): answer_data[key]=str(answer_data[key])
-                for key in ("possible_causes","actions"):
-                    if not isinstance(answer_data[key],list): answer_data[key]=[]
+            parsed=json.loads(match.group(0)) if match else {}
+            if not isinstance(parsed,dict): raise ValueError("Model response was not a JSON object")
+            valid_citation=lambda value: bool(re.search(r"\[[1-9]\d*\]",value)) and all(int(n)<=len(sources) for n in re.findall(r"\[([1-9]\d*)\]",value))
+            for key in ("likely_explanation","preliminary_assessment","summary","contact_ground","confidence"):
+                if isinstance(parsed.get(key),str) and parsed[key].strip(): answer_data[key]=parsed[key].strip()
+            for key in ("possible_causes","actions"):
+                values=parsed.get(key,[])
+                answer_data[key]=[str(x).strip() for x in values if str(x).strip() and valid_citation(str(x))] if isinstance(values,list) else []
+            if not valid_citation(answer_data["likely_explanation"]): answer_data["likely_explanation"]="The model did not return a preliminary diagnosis supported by a valid NASA citation."
+            if not valid_citation(answer_data["preliminary_assessment"]): answer_data["preliminary_assessment"]="NASA passages were retrieved, but the model did not return a source-cited preliminary explanation. Review the passages with the crew medical officer."
+            answer_data["summary"]=answer_data["preliminary_assessment"]
+            if not valid_citation(answer_data["contact_ground"]): answer_data["contact_ground"]="The retrieved NASA passages do not establish a contact threshold. Follow approved onboard protocol and consult the crew medical officer."
         except Exception:
-            answer_data["confidence"]="Low: the local model response could not be validated."
+            answer_data["confidence"]="Limited: the local model response could not be validated against the retrieved NASA passages. No unsupported actions are presented."
+    if retrieval_error: answer_data["confidence"]="Limited: local NASA search was unavailable, so no source passages could be checked."
     if critical:
-        answer_data["summary"]="Critical warning sign reported. This is not a diagnosis; follow the onboard emergency protocol now."
-        answer_data["possible_causes"]=[]
-        answer_data["actions"]=["Stop strenuous activity and alert another crew member.","Follow the onboard emergency medical checklist.","Contact the crew medical officer and ground support immediately."]
-        answer_data["contact_ground"]="Immediately, following mission communication procedures."
-        answer_data["confidence"]="Urgency set by a fixed safety rule, not by the model."
+        answer_data["likely_explanation"]="A preliminary cause cannot be established by the red-flag rule alone."
+        answer_data["preliminary_assessment"]="A configured red-flag rule detected a potentially urgent symptom. The rule does not identify a cause; NASA passages and the crew medical team must guide further assessment."
+        answer_data["summary"]=answer_data["preliminary_assessment"]
+        answer_data["safety_override"]="Urgency was raised by an application safety rule, not by the language model. Follow the approved onboard emergency protocol and contact the crew medical officer/ground support."
+        answer_data["confidence"]="Urgency set by a fixed safety rule; possible causes and actions remain limited to cited NASA passages."
     elif level=="elevated":
-        answer_data["summary"]="Elevated concern based on the reported severity or worsening symptoms. This is not a diagnosis."
-        answer_data["actions"]=(answer_data["actions"] or ["Notify the crew medical officer.","Record and recheck the reported vitals."])
+        answer_data["preliminary_assessment"]+=" Application urgency is elevated because the reported severity is high or symptoms are worsening; that rule does not establish a diagnosis."
+        answer_data["summary"]=answer_data["preliminary_assessment"]
     with connect() as con:
         con.execute("INSERT INTO messages(session_id,role,content) VALUES(?,?,?)",(data.session_id,"user",question))
         mid=con.execute("INSERT INTO messages(session_id,role,content,refused) VALUES(?,?,?,?)",(data.session_id,"assistant",json.dumps(answer_data,ensure_ascii=False),int(not sources))).lastrowid
         for rank,source in enumerate(sources,1): con.execute("INSERT INTO retrievals(message_id,chunk_id,rank,distance) VALUES(?,?,?,?)",(mid,source["chunk_id"],rank,source["distance"]))
-    return {"message_id":mid,"level":level,**answer_data,"sources":[{"n":i,**s} for i,s in enumerate(sources,1)],"disclaimer":"Guidance only, not a diagnosis. Simulated crew data only."}
+    return {"message_id":mid,"level":level,**answer_data,"sources":[{"n":i,**s} for i,s in enumerate(sources,1)],"disclaimer":"Preliminary, NASA-source-grounded decision support only. Not a definitive diagnosis or a replacement for the approved onboard protocol or crew medical officer."}
 
 @app.post("/feedback")
 def feedback(data:FeedbackIn):

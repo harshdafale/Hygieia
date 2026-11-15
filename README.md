@@ -13,7 +13,7 @@ The interface follows the supplied “AstroMed | Crew health, beyond Earth” de
 - Vitals, symptom reports, advisories, and copilot conversation history are scoped to the authenticated crew member.
 - The dashboard loads each member’s latest readings, seven-day telemetry, and advisories from the API.
 - Personal baselines average that member’s previous 14 days. Readings within 10% are Nominal, within 20% are Watch, and beyond that are Out of range. Missing baselines show no data.
-- Diagnostics includes that member’s latest vitals and three latest symptom reports, retrieves up to three NASA passages, and asks the local model for constrained JSON. Fixed keyword rules can raise urgency to Critical; severity 7+ or worsening symptoms raise it to Elevated.
+- Diagnostics includes that member’s latest vitals and three latest symptom reports, retrieves up to three NASA passages, and asks the local model for a preliminary assessment. Possible explanations, next steps, and NASA-grounded contact guidance are displayed only when they cite a retrieved passage. Fixed red-flag and severity rules are shown separately from the model assessment.
 - General crew tasks use the local copilot. Recent turns are included to support follow-up questions.
 - Documents are indexed locally with dense embeddings. SQLite stores document metadata, chunks, retrieval audit entries, and app records.
 
@@ -99,7 +99,7 @@ Change model names, chunk sizes, overlap, top-k, and paths in config/settings.py
 
 ## Limitations
 
-- Qwen 2.5 7B gives the copilot more room to follow conversational context than the former 2B model, but local model output can still be incomplete. Diagnostics do not produce a final diagnosis; code-based urgency rules take precedence.
+- Qwen 2.5 7B gives the copilot more room to follow conversational context than the former 2B model, but local model output can still be incomplete. Diagnostic results are preliminary decision support, not a definitive diagnosis; the app requires NASA citations for model-generated causes and actions, and code-based urgency rules remain separate.
 - Personal baselines and percentage bands are prototype logic, not clinical limits.
 - Crew accounts are for a local prototype. Tokens are hashed but do not expire and there is no account recovery.
 - Do not expose Flask’s development server publicly. No production security review has been done.
