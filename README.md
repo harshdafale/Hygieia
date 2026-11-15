@@ -1,6 +1,6 @@
 ﻿# AstroMed
 
-AstroMed is a local crew-support prototype for long-duration spaceflight. It combines a private per-crew health log, a local Gemma copilot for general crew tasks, and NASA-source retrieval for health questions.
+AstroMed is a local crew-support prototype for long-duration spaceflight. It combines a private per-crew health log, a local Qwen 2.5 7B copilot for general crew tasks, and NASA-source retrieval for health questions.
 
 The interface follows the supplied “AstroMed | Crew health, beyond Earth” design. The website uses Vite, the local API uses Flask, crew records use SQLite, document search uses ChromaDB, and Ollama runs the language and embedding models locally.
 
@@ -25,7 +25,7 @@ Python 3.10+, Node.js and npm, Ollama, and NASA PDF, HTML, or TXT files that you
 
 Install the local models once:
 
-    ollama pull gemma:2b
+    ollama pull qwen2.5:7b
     ollama pull nomic-embed-text
 
 Install Python and frontend dependencies from the project root:
@@ -92,14 +92,14 @@ Protected endpoints derive the owner ID from the bearer token. They do not accep
 
 ## Evaluation and configuration
 
-Change MAX_DIST, model names, chunk sizes, overlap, top-k, and paths in config/settings.py. Set ASTRORAG_MAX_DIST to override the retrieval threshold.
+Change model names, chunk sizes, overlap, top-k, and paths in config/settings.py. Set `ASTROMED_LLM_MODEL` to choose another already-installed Ollama model, and `ASTRORAG_MAX_DIST` to override the retrieval threshold.
 
     python -m eval.calibrate
     python -m eval.run_eval
 
 ## Limitations
 
-- Gemma 2B is small and may misunderstand context or return invalid JSON. Diagnostics do not produce a final diagnosis; code-based urgency rules take precedence.
+- Qwen 2.5 7B gives the copilot more room to follow conversational context than the former 2B model, but local model output can still be incomplete. Diagnostics do not produce a final diagnosis; code-based urgency rules take precedence.
 - Personal baselines and percentage bands are prototype logic, not clinical limits.
 - Crew accounts are for a local prototype. Tokens are hashed but do not expire and there is no account recovery.
 - Do not expose Flask’s development server publicly. No production security review has been done.

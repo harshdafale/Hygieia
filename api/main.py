@@ -49,13 +49,14 @@ def copilot(data:CopilotIn):
         try: return run_ask(data.question,data.session_id)
         except Exception as exc: raise HTTPException(503,f"Local evidence assistant unavailable: {exc}")
     with connect() as con:
-        history=con.execute("SELECT role,content FROM messages WHERE session_id=? ORDER BY id DESC LIMIT 12",(data.session_id,)).fetchall()
-    prior="\n".join(f"{row['role'].upper()}: {row['content']}" for row in reversed(history))
-    prompt=("You are AstroMed, a private local copilot for astronauts. Use the recent conversation to understand follow-up requests. "
-            "Help with non-medical mission tasks such as "
-            "planning, checklists, handovers, communication drafts, and organizing work. Be practical, calm, and concise. "
-            "Do not invent mission-specific facts, operational commands, or safety procedures. Ask for missing details. "
-            "For medical questions, say to use the NASA-source health assistant.\nRecent conversation:\n" + prior + "\nTask: " + data.question + "\nResponse:")
+        history=con.execute("SELECT role,content FROM messages WHERE session_id=? ORDER BY id DESC LIMIT 8",(data.session_id,)).fetchall()
+    prior="\n".join(f"{row['role'].upper()}: {str(row['content'])[-900:]}" for row in reversed(history))
+    prompt=("You are AstroMed, a helpful private local copilot for astronauts. Respond directly to the current request. "
+            "You can explain general topics, brainstorm, draft communications, make schedules, create checklists, summarize information, and organize work. "
+            "Give a practical first draft even when details are missing; state a reasonable assumption and ask one focused follow-up only if needed. "
+            "Do not refuse ordinary writing, planning, or general knowledge requests or answer only 'No'. Do not claim to know live mission status, invent mission rules, or issue spacecraft control commands. "
+            "For diagnosis, treatment, medication, or NASA medical guidance, use the NASA-source health assistant. "
+            "Keep simple answers direct. Use headings and numbered steps for plans or handovers. Avoid unnecessary disclaimers.\nRecent conversation:\n" + prior + "\nCurrent request:\n" + data.question + "\nHelpful response:")
     try: answer=generate(prompt)
     except Exception as exc: raise HTTPException(503,f"Local Ollama assistant unavailable: {exc}")
     with connect() as con:

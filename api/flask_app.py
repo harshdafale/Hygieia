@@ -220,13 +220,19 @@ def copilot():
     data=request.get_json(silent=True) or {}; question=str(data.get("question","")).strip()
     if not question or len(question)>2000: return jsonify(error="Enter a task or question (up to 2000 characters)."),400
     with connect() as db:
-        history=db.execute("SELECT role,content FROM crew_chat_messages WHERE crew_id=? ORDER BY id DESC LIMIT 12",(g.crew_id,)).fetchall()
-    prior="\n".join(f"{r['role'].upper()}: {r['content']}" for r in reversed(history))
-    prompt=("You are AstroMed, a local crew copilot. Use recent conversation for follow-ups. Help with planning, handovers, checklists and organizing work. "
-            "Format every answer for easy scanning: start with a one-sentence summary, then use short titled sections and bullets or numbered steps when useful. "
-            "For a plan, give ordered steps and a short checklist. For a handover, separate Status, Completed, Open items, and Next shift. "
-            "For a simple question, answer directly and add context only when it helps. Be practical and clear, not overly terse. "
-            "Do not invent mission-specific facts, operational commands, or safety procedures. Health questions belong in the NASA-grounded diagnostics flow.\nRecent conversation:\n"+prior+"\nTask: "+question+"\nResponse:")
+        history=db.execute("SELECT role,content FROM crew_chat_messages WHERE crew_id=? ORDER BY id DESC LIMIT 8",(g.crew_id,)).fetchall()
+    # Bound prior chat so a long thread cannot push the current question out of
+    # the local model's context window. The latest turns are the most useful for follow-ups.
+    prior="\n".join(f"{r['role'].upper()}: {str(r['content'])[-900:]}" for r in reversed(history))
+    prompt=("You are AstroMed, a helpful local assistant for an astronaut. Respond to the user's current request directly. "
+            "You can explain general topics, brainstorm, draft messages, make schedules, create checklists, summarize information, and help organize work. "
+            "Give a useful first draft or practical next steps even when some details are missing; state a reasonable assumption and ask one focused follow-up only if needed. "
+            "Do not answer only 'No' or refuse a normal writing, planning, or general knowledge request. "
+            "Do not claim to know this mission's live status, invent mission rules, or issue spacecraft control commands. If a request depends on unavailable mission-specific facts, say exactly what is missing and still offer a generic template. "
+            "For diagnosis, treatment, or medication advice, direct the crew member to Medical Diagnostics and its NASA evidence. "
+            "Use a short direct answer for simple questions. For plans and handovers, use clear headings, steps, and a checklist. Avoid unnecessary disclaimers.\n"
+            "Recent conversation (use it to understand references such as 'that' or 'make it shorter'):\n"+prior+
+            "\nCurrent user request:\n"+question+"\nHelpful response:")
     try: answer=generate(prompt)
     except Exception as exc: return jsonify(error=f"Local Ollama assistant unavailable: {exc}"),503
     with connect() as db:

@@ -194,7 +194,7 @@ footer { border-top:1px solid var(--line); margin-top:60px; padding:28px 0 36px;
 
 <div id="tab-copilot" hidden>
   <section class="page"><div class="wrap">
-    <div class="head"><h2>Onboard AI copilot</h2><span class="caps">Local Gemma · private crew support</span></div>
+    <div class="head"><h2>Onboard AI copilot</h2><span class="caps">Local Qwen 2.5 7B · private crew support</span></div>
     <div class="cols"><div><h3 class="caps">What do you need help with?</h3>
       <label class="f caps" for="copilotText">Mission task or crew health question</label>
       <textarea id="copilotText" placeholder="Draft a shift handover, organize tomorrow's tasks, or ask about crew health..."></textarea>
@@ -350,7 +350,7 @@ for (var g = 0; g < goButtons.length; g++) {
 }
 showTab("home");
 
-// Local copilot: general crew tasks use Gemma; health topics are routed to NASA RAG.
+// Local copilot: general crew tasks use Qwen; health topics are routed to NASA RAG.
 var crewSession = null;
 async function sendCopilot(text, targetBox) {
   targetBox.textContent = "Working with the local assistant...";
@@ -482,7 +482,7 @@ redrawCharts();
 var slider = document.getElementById("severity");
 slider.oninput = function () { document.getElementById("severityOut").textContent = slider.value; };
 
-// DEMO LOGIC: later, replace this function with a call to your Gemma backend.
+// Sample-only diagnostics fallback; the authenticated backend handler replaces it after login.
 function analyse(text, severity, worse) {
   text = text.toLowerCase();
   var level = "ok";
