@@ -8,6 +8,6 @@ def generate(prompt: str, model: str | None = None) -> str:
     result = ollama.chat(
         model=model or LLM_MODEL,
         messages=[{"role":"user", "content":prompt}],
-        options={"temperature":0.25, "num_ctx":4096, "num_predict":512},
+        options={"temperature":0.25, "num_ctx":4096, "num_predict":512, "num_gpu":0},
     )
     return result["message"]["content"].strip()

@@ -2,6 +2,17 @@
 from __future__ import annotations
 
 import re
+import json
+
+
+def parse_json_object(text: str) -> dict:
+    """Read a JSON object from a model response, including fenced responses."""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return {}
+    value = json.loads(text[start:end + 1])
+    return value if isinstance(value, dict) else {}
 
 
 def _normalize(text: str) -> str:

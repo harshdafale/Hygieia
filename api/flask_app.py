@@ -15,8 +15,8 @@ from api.db import connect
 from config.settings import WEB_ORIGIN
 from rag.retrieve import retrieve
 from rag.generate import generate
-from rag.evidence import validate_nasa_actions
-from config.settings import DIAGNOSIS_MODEL
+from rag.evidence import validate_nasa_actions, parse_json_object
+from config.settings import LLM_MODEL
 
 app = Flask(__name__, static_folder="../web/dist", static_url_path="")
 
@@ -262,10 +262,9 @@ def diagnose():
     recent_context=[]
     for row in recent:
         item=dict(row)
-        try: item["ai_answer_json"]=json.loads(item["ai_answer_json"])
-        except (TypeError,ValueError): item["ai_answer_json"]={}
-        prior_answer=item["ai_answer_json"] if isinstance(item["ai_answer_json"],dict) else {}
-        recent_context.append({"symptoms":item["symptoms"],"severity":item["severity"],"urgency":item["urgency"],"created_at":item["created_at"],"previous_assessment":prior_answer.get("preliminary_assessment",prior_answer.get("summary",""))})
+        # Keep symptom history for context, but don't feed old model refusals back
+        # into the next assessment as if they were clinical findings.
+        recent_context.append({"symptoms":item["symptoms"],"severity":item["severity"],"urgency":item["urgency"],"created_at":item["created_at"]})
     context_query=(f"Current symptoms: {symptoms}. Reported severity: {severity}/10. Duration: {duration}. "
                    f"Worsening: {bool(data.get('worsening'))}. Current vitals and personal-baseline status: {json.dumps(recent_vitals,ensure_ascii=False)}. "
                    f"Recent symptom history: {json.dumps(recent_context,ensure_ascii=False)}")
@@ -281,32 +280,43 @@ def diagnose():
     red_flags=("chest","breath","bleed","faint","loss of consciousness","unconscious","seizure","confus")
     critical=any(term in symptoms.lower() for term in red_flags)
     urgency="Critical" if critical else "Elevated" if severity>=7 or data.get("worsening") else "Routine"
-    answer={"likely_explanation":"The local model could not produce a preliminary assessment.","preliminary_assessment":"The local model could not produce a preliminary assessment.","summary":"The local model could not produce a preliminary assessment.","possible_causes":[],"actions":[],"action_evidence":[],"contact_ground":"No NASA-sourced contact threshold was found in the retrieved passages.","contact_ground_evidence":None,"confidence":"The model response was unavailable or could not be parsed.","safety_override":""}
-    chunks="\n\n".join(f"[{i}] NASA document: {s.get('title') or s.get('filename') or 'NASA source'}; section: {s.get('section') or 'not listed'}; page: {s.get('page') or 'not listed'}\n{s['text']}" for i,s in enumerate(sources,1)) or "No relevant NASA passages were retrieved."
-    prompt=("You are AstroMed. Create a PRELIMINARY medical assessment from the reported symptoms, severity, duration, worsening, current vitals relative to the crew member's baseline, and recent symptom history. "
-            "Use careful general medical pattern recognition to offer the most plausible preliminary explanation and a short differential; do not claim certainty or present it as a final diagnosis. "
-            "This diagnosis and differential are model-generated, not verified by NASA; say when key information is missing. "
-            "The STEPS TO FOLLOW are different: include only steps directly supported by numbered NASA passages below. Return each action as an object {step, source, evidence_quote}, where evidence_quote is an exact excerpt of at least 20 characters copied from that numbered passage. "
-            "Never invent treatment, medication, dose, threshold, or mission procedure. The code will discard any step whose quote is not present in the cited NASA passage. "
-            "If no passage supports an action, return an empty actions array. For contact_ground, use the same {step, source, evidence_quote} format or return an empty string. "
-            "Return one JSON object only with keys: likely_explanation (one direct provisional possibility), preliminary_assessment (2-4 sentences explaining the model's reasoning and uncertainty), summary, possible_causes (array of provisional model-generated alternatives), actions (array of NASA-checked action objects), contact_ground (NASA-checked action object or empty string), confidence (separate model uncertainty from NASA action coverage). "
-            "Do not put markdown fences around the JSON.\nCREW REPORT AND PERSONAL CONTEXT:\n"+context_query+"\nNASA PASSAGES FOR CHECKING ACTIONS (cite only these numbered passages):\n"+chunks+"\nJSON:")
+    answer={"likely_explanation":"The medical model did not return a preliminary explanation.","preliminary_assessment":"The medical model did not return a preliminary explanation.","summary":"The medical model did not return a preliminary explanation.","possible_causes":[],"actions":[],"action_evidence":[],"contact_ground":"No NASA-sourced contact threshold was found in the retrieved passages.","contact_ground_evidence":None,"confidence":"Model assessment unavailable; NASA action review is separate.","safety_override":""}
+    # Keep the diagnosis model's prompt free of NASA retrieval text. NASA material
+    # is only supplied to the separate action-step checker below.
+    diagnosis_prompt=("You are AstroMed's local medical model. Give a cautious PRELIMINARY assessment based on the crew report, symptoms, severity, duration, worsening, vitals compared with personal baseline, and prior symptom reports. "
+                      "Use medical pattern recognition to state the most plausible explanation and a brief differential. This is model-generated, uncertain, and not a final diagnosis. "
+                      "Do not refuse because NASA evidence is missing; NASA sources are not used to decide this assessment. Do not prescribe medications or treatment. "
+                      "Return a JSON object only with likely_explanation, preliminary_assessment, possible_causes (array), and confidence.\nCREW REPORT AND CONTEXT:\n"+context_query+"\nJSON:")
     try:
-        raw=generate(prompt, model=DIAGNOSIS_MODEL); start=raw.find("{"); end=raw.rfind("}")
-        parsed=json.loads(raw[start:end+1]) if start>=0 and end>start else {}
-        if not isinstance(parsed,dict): raise ValueError("Model response was not a JSON object")
-        answer["actions"],answer["action_evidence"]=validate_nasa_actions(parsed.get("actions"),sources)
-        for key in ("likely_explanation","preliminary_assessment","summary","contact_ground","confidence"):
-            value=parsed.get(key)
-            if isinstance(value,str) and value.strip(): answer[key]=value.strip()
-        alternatives=parsed.get("possible_causes")
-        answer["possible_causes"]=[str(x).strip() for x in alternatives if str(x).strip()] if isinstance(alternatives,list) else []
+        diagnosis_raw=generate(diagnosis_prompt, model=LLM_MODEL)
+        diagnosis=parse_json_object(diagnosis_raw)
+        if diagnosis:
+            for key in ("likely_explanation","preliminary_assessment","confidence"):
+                value=diagnosis.get(key)
+                if isinstance(value,str) and value.strip(): answer[key]=value.strip()
+            alternatives=diagnosis.get("possible_causes")
+            answer["possible_causes"]=[str(x).strip() for x in alternatives if str(x).strip()] if isinstance(alternatives,list) else []
+        elif diagnosis_raw.strip():
+            answer["likely_explanation"]=diagnosis_raw.strip()[:1200]
+            answer["preliminary_assessment"]=diagnosis_raw.strip()[:2400]
         answer["summary"]=answer["preliminary_assessment"]
-        contact,contact_evidence=validate_nasa_actions([parsed.get("contact_ground")],sources)
-        answer["contact_ground"]=contact[0] if contact else "No NASA-sourced contact threshold was found in the retrieved passages."
-        answer["contact_ground_evidence"]=contact_evidence[0] if contact_evidence else None
-        if not answer["actions"]: answer["confidence"]+=" No NASA-supported action was found in the retrieved passages."
-    except Exception: answer["confidence"]="The local model response could not be parsed. No unverified actions are shown."
+    except Exception as exc:
+        answer["confidence"]=f"The local medical model could not produce an assessment: {exc}"
+    if sources:
+        chunks="\n\n".join(f"[{i}] NASA document: {s.get('title') or s.get('filename') or 'NASA source'}; section: {s.get('section') or 'not listed'}; page: {s.get('page') or 'not listed'}\n{s['text']}" for i,s in enumerate(sources,1))
+        action_prompt=("You are extracting follow-up steps from NASA text for a crew-health report. Use only the numbered NASA passages below. Do not diagnose. "
+                       "Return only steps directly supported by these passages. Return each step as {step, source, evidence_quote}, where evidence_quote is an exact excerpt of at least 20 characters from that numbered passage. "
+                       "Never add general medical advice, treatments, medication, dose, threshold, or procedure absent from the passage. Unverified steps will be discarded. "
+                       "Return JSON only with actions (array) and contact_ground (same object or empty string). If no step is supported, use an empty actions array.\nREPORT:\n"+context_query+"\nNASA PASSAGES:\n"+chunks+"\nJSON:")
+        try:
+            action_data=parse_json_object(generate(action_prompt, model=LLM_MODEL))
+            answer["actions"],answer["action_evidence"]=validate_nasa_actions(action_data.get("actions"),sources)
+            contact,contact_evidence=validate_nasa_actions([action_data.get("contact_ground")],sources)
+            answer["contact_ground"]=contact[0] if contact else "No NASA-sourced contact threshold was found in the retrieved passages."
+            answer["contact_ground_evidence"]=contact_evidence[0] if contact_evidence else None
+        except Exception:
+            answer["confidence"]+=" NASA step extraction failed; no unverified actions are shown."
+    if not answer["actions"]: answer["confidence"]+=" No NASA-supported step was verified in the retrieved passages."
     if retrieval_error:
         answer["confidence"]="Limited: the local NASA search service was unavailable, so no source passages could be checked."
     if critical:
